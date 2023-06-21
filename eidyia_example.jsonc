@@ -1,0 +1,66 @@
+{
+	// [optional]
+	// Title associated to the Site Status page
+	"status_title": "Wesnoth.org Site Status Survey",
+
+	// [optional]
+	// Site URL used to link to the Site Status page in report posts
+	"status_site_url": "https://status.wesnoth.org/",
+
+	// [optional]
+	// Icon associated with the Site Status page in report posts
+	"status_site_icon": "https://status.wesnoth.org/wesmere/logo-minimal-64@2x.png",
+
+	// [mandatory]
+	// The "discord" configuration group includes settings affecting
+	// the Discord reporting module.
+	"discord": {
+		// [mandatory]
+		// Discord API token used to authenticate the bot. Do not share this
+		// publicly as it gives others access to your bot.
+		"token": "YOUR TOKEN HERE",
+
+		// [mandatory]
+		// Discord guilds block, where each key is a Discord guild id with an
+		// associated list of Discord channel ids.
+		"guilds": {
+			// Example guild
+			"12345678901234567890": [
+				// Example channel
+				"98765432109876543210"
+			]
+		},
+
+		// [optional]
+		// Specifies how to handle changes or lack thereof between updates:
+		//
+		//  * false: Every update triggers a report post.
+		//
+		//  * true: Updates trigger a report that only shows changes from the
+		//    previous update. If there are no changes, the overall status is
+		//    still posted in a report, along with any currently impacted
+		//    facilities (if there are any)
+		//
+		//  * "strict": Updates trigger a report only if there are any changes
+		//    from the previous update. If there are no changes, no post is
+		//    made.
+		"changes_only": true,
+
+		// [optional]
+		// Whether to include hostnames in the report
+		"show_hostnames": false,
+
+		// [optional]
+		// One of "playing", "streaming", "listening", "watching", "competing"
+		"activity": "watching",
+
+		// [optional]
+		// Status text for the activity
+		"status": "status.wesnoth.org",
+
+		// [optional]
+		// Discord message text added to the embed as a banner in the event
+		// that a DNS issue is found in the report.
+		"dns_notice": ":warning: **WARNING:** One or more facilities or instances report DNS issues. While in the best case this could simply be the result of an Eidyia host misconfiguration, it could also be a consequence of a Wesnoth.org DNS provider issue, which warrants **immediate** attention."
+	}
+}

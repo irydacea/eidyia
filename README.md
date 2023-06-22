@@ -46,7 +46,7 @@ in the not-too-distant future.)
 
 ## Installation
 
-The minimum required interpreter version is **Python 9**.
+The minimum required interpreter version is **Python 3.9**.
 
 There are a couple of required dependencies that need to be installed first
 for `eidyia` to run correctly:

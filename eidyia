@@ -14,13 +14,12 @@ from enum import IntEnum
 import jsonc_parser.parser
 import jsonc_parser.errors
 import logging
-from watchdog.observers import Observer
 import sys
 from typing import Any, Dict, Optional, Self
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
-from src.eidyia.subscriber_api import FSEventHandler as EidyiaFSEventHandler
+from src.eidyia.subscriber_api import Beholder as EidyiaBeholder
 from src.eidyia.subscriber_api import Subscriber as EidyiaSubscriber
 import src.eidyia.ui_utils as eidyia_ui_utils
 from src.eidyia.thread_utils import ConcurrentFlag
@@ -129,8 +128,7 @@ class EidyiaClient(discord.Client, EidyiaSubscriber):
         self._old_report = None
         self._report_mode = EidyiaClient.ReportMode.REPORT_ALWAYS_FULL
         self._force_full_report_once = False
-        self._fs_event_handler = None
-        self._fs_observer = None
+        self._beholder = None
         self._task = None
         self._should_refresh = ConcurrentFlag()
         self._guilds = {}
@@ -160,9 +158,8 @@ class EidyiaClient(discord.Client, EidyiaSubscriber):
         '''
         Releases resources such as filesystem monitoring objects.
         '''
-        if self._fs_observer is not None:
-            self._fs_observer.stop()
-            self._fs_observer.join()
+        if self._beholder is not None:
+            self._beholder.stop()
 
     def set_config(self, config):
         '''
@@ -231,10 +228,8 @@ class EidyiaClient(discord.Client, EidyiaSubscriber):
         if self._report is not None:
             raise EidyiaClient.UnsupportedError('double attach attempt')
         self._report = report
-        self._fs_event_handler = EidyiaFSEventHandler(self)
-        self._fs_observer = Observer()
-        # FIXME: recursive must be True otherwise nothing happens??
-        self._fs_observer.schedule(self._fs_event_handler, report.filename(), recursive=True)
+        self._beholder = EidyiaBeholder(report.filename(), self)
+        self._beholder.attach()
         log.debug('eidyia is subscribed to valen report')
 
     async def eidyia_monitoring_task(self):
@@ -245,19 +240,19 @@ class EidyiaClient(discord.Client, EidyiaSubscriber):
         # observer, and the event handler notifies the main thread back if
         # there is anything we need to do, by using a locking ConcurrentFlag
         # object.
-        if self._fs_observer is None:
+        if self._beholder is None:
             # Somehow we ran before monitoring was fully set up. This should
             # never happen.
             raise EidyiaClient.UnsupportedError('invalid task configuration')
         await self.wait_until_ready()
 
         # Ready to go!
-        self._fs_observer.start()
+        self._beholder.start()
         log.debug('Report file monitoring started')
 
         unhandled_exc_count = 0
 
-        while not self.is_closed() and self._fs_observer.is_alive():
+        while not self.is_closed() and self._beholder.active():
             if self._should_refresh.get():
                 try:
                     await self.do_refresh()

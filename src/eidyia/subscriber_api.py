@@ -8,6 +8,7 @@ See COPYING for use and distribution terms.
 
 from abc import ABC, abstractmethod
 import logging
+from pathlib import Path
 from typing import List, Union
 import watchdog.events
 import watchdog.observers
@@ -30,16 +31,29 @@ class Subscriber(ABC):
 SubscriberList = Union[Subscriber, List[Subscriber]]
 
 
-class FSEventHandler(watchdog.events.FileSystemEventHandler):
+class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
     '''
     Eidyia file monitor class.
 
     It is a watchdog.events.FileSystemEventHandler that can signal its
     associated EidyiaReceiver to broadcast notifications when its monitored
-    target(s) are modified on disk.
+    target is modified on disk.
+
+    Because Valen writes report to a temporary .new file which then replaces
+    the old file by taking its name, the ordinary FileSystemEventHandler loses
+    track of the original file since its inode gets deleted. This handler
+    circumvents this by receiving events for the directory that owns the file
+    name and only dispatching to Eidyia subscribers if an object with the same
+    filename passed in the constructor gets created or modified (deletions are
+    ignored beyond warning about them).
+
+    (Additionally, because of Valen's implementation we are guaranteed that
+    whenever a creation event is dispatched, we are notifying subscribers of a
+    completely coherent file and not one that is not fully written to disk.)
     '''
-    def __init__(self, subscribers: SubscriberList = None):
+    def __init__(self, path: Path, subscribers: SubscriberList = None):
         super().__init__()
+        self.path = path
         self.subscribers = []
         if subscribers is not None:
             self.subscribe(subscribers)
@@ -51,33 +65,81 @@ class FSEventHandler(watchdog.events.FileSystemEventHandler):
             self.subscribers += subscribers.copy()
         log.debug('EidyiaFSEventHandler.subscribe(): subscribed')
 
-    def on_any_event(self, event):
-        log.debug('oh')
+    def on_any_event(self, event: watchdog.events.FileSystemEvent):
+        '''
+        Handle filesystem events and notify subscribers.
+        '''
+        event_path = None
+        if isinstance(event, (watchdog.events.FileCreatedEvent,
+                              watchdog.events.FileModifiedEvent)):
+            event_path = Path(event.src_path).resolve()
+        elif isinstance(event, watchdog.events.FileMovedEvent):
+            event_path = Path(event.dest_path).resolve()
 
-    def on_created(self, event):
-        '''
-        Handle file creation.
-        '''
-        # TODO: ?
-        log.debug('EidyiaFSEventHandler.on_created(): STUB')
+        if event_path is not None and event_path == self.path:
+            if not self.subscribers:
+                log.critical('EidyiaEventHandler.on_any_event(): no subscribers')
+                return
+            log.debug(f'EidyiaEventHandler.on_any_event(): ACK {event}')
+            for subscriber in self.subscribers:
+                log.debug('EidyiaEventHandler.on_any_event(): notifying subscriber')
+                subscriber.on_eidyia_update()
 
-    def on_deleted(self, event):
-        '''
-        Handle file deletion.
-        '''
-        # TODO: ?
-        log.debug('EidyiaFSEventHandler.on_deleted(): STUB')
 
-    def on_modified(self, event):
+class Beholder:
+    '''
+    Eidyia file monitor manager.
+
+    Manages an FSEventHandler and watchdog Observer pair as well as abstracts
+    the specifics of the file monitoring process; in particular, it hides the
+    complexity behind watching a "file" that changes inode number because of
+    Valen's coherency guarantee.
+    '''
+    def __init__(self,
+                 filename: str,
+                 controlling_sub: Subscriber):
         '''
-        Handle file modification.
+        Constructor.
+
+        Parameters:
+            filename                Path to a file to monitor.
+            controlling_sub         Controlling object (which acts as the
+                                    single subscriber of the event handler).
         '''
-        if isinstance(event, watchdog.events.DirModifiedEvent):
-            log.critical(f'EidyiaFSEventHandler.on_modified(): {event.src_path} is or became a directory somehow')
-            return
-        if not self.subscribers:
-            log.critical('EidyiaFSEventHandler.on_modified(): no subscribers')
-            return
-        for subscriber in self.subscribers:
-            log.debug('EidyiaFSEventHandler.on_modified(): notifying subscriber')
-            subscriber.on_eidyia_update()
+        self._controlling_sub = controlling_sub
+        self._event_handler = None
+        self._observer = None
+        self._path = Path(filename).resolve()
+
+    def attach(self):
+        '''
+        Attaches (but does not start) a new observer and event handler pair.
+        '''
+        self._observer = watchdog.observers.Observer()
+        self._event_handler = EidyiaEventHandler(self._path,
+                                                 self._controlling_sub)
+        # Observe the parent dir, not the singular file!
+        self._observer.schedule(self._event_handler, self._path.parent, recursive=False)
+
+    def start(self):
+        '''
+        Starts observing.
+        '''
+        if self._observer is None:
+            log.critical('Attempted to start observing without an observer')
+        else:
+            self._observer.start()
+
+    def active(self) -> bool:
+        '''
+        Returns True if an observer is running.
+        '''
+        return self._observer is not None and self._observer.is_alive()
+
+    def stop(self):
+        '''
+        Stops observing.
+        '''
+        if self._observer is not None:
+            self._observer.stop()
+            self._observer.join()

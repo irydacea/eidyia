@@ -70,10 +70,11 @@ process.
 
 `eidyia` supports a few additional command line arguments:
 
-* `-v / --verbose`
-  Increases log verbosity for diagnostic purposes.
 * `-d / --debug`
   Increases log verbosity to the absolute maximum for hacking and debugging.
+* `-r / --report`
+  Specifies the path to the Valen report file. The default path used if this
+  is not provided in the commandline is `../valen/valen.json`.
 
 ### Generating a bot token
 
@@ -104,5 +105,5 @@ process.
    Administrator privilege:
 
 ```
-https://discordapp.com/oauth2/authorize?&client_id=APPID&scope=bot&permissions=0
+https://discordapp.com/oauth2/authorize?&client_id=APPID&scope=bot&permissions=51200
 ```

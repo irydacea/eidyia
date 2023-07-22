@@ -42,13 +42,13 @@ log = logging.getLogger('DiscordClient')
 
 class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
     '''
-    Main Eidyia application class.
+    Main Eidyia Discord client class.
     '''
     class UnsupportedError(Exception):
         '''
         Exception type thrown if we run into an unsupported scenario.
         '''
-        def __init__(self, message):
+        def __init__(self, message: str):
             self.message = message
 
     def __init__(self, config: EidyiaConfig, *args, **kwargs):
@@ -60,7 +60,8 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         separately after construction (see the connect_observer() method).
 
         Arguments:
-            config: A dict (from JSON) containing Eidyia's user configuration.
+            config: An EidyiaConfig instance holding the current Eidyia
+                    application configuration.
         '''
         self._report = None
         self._old_report = None

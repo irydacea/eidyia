@@ -41,15 +41,6 @@ def exit_error(msg: str):
     sys.exit(1)
 
 
-def extract_token(config: dict) -> str:
-    '''
-    Extracts the Discord API token from JSON.
-    '''
-    discord_config: dict = config.get('discord', {})
-    return discord_config.get('token', None) \
-        if isinstance(discord_config, dict) else None
-
-
 def main():
     '''
     Application entry point.

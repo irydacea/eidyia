@@ -92,9 +92,11 @@ def main():
     try:
         config = EidyiaConfig(args.config)
     except EidyiaConfig.FileError as err:
-        exit_error(f'Could not read configuration from {args.config}: {err}')
+        exit_error(f'Could not read configuration from {args.config}:\n'
+                   f'  {err}')
     except EidyiaConfig.ConfigError as err:
-        exit_error(f'Incorrect configuration in {args.conf}: {err}')
+        exit_error(f'Incorrect configuration in {args.config}:\n'
+                   f'  {err}')
 
     #
     # Validate credentials

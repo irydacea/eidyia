@@ -7,11 +7,10 @@ See COPYING for use and distribution terms.
 '''
 
 import argparse
-import jsonc_parser.parser
-import jsonc_parser.errors
 import logging
 import sys
 
+from src.eidyia.config import EidyiaConfig
 from src.eidyia.discord_client import EidyiaDiscordClient
 from src.valen.V1Report import Report as V1Report
 
@@ -91,14 +90,16 @@ def main():
     #
     config = None
     try:
-        config = jsonc_parser.parser.JsoncParser.parse_file(args.config)
-    except (jsonc_parser.errors.FileError, jsonc_parser.errors.ParserError) as err:
+        config = EidyiaConfig(args.config)
+    except EidyiaConfig.FileError as err:
         exit_error(f'Could not read configuration from {args.config}: {err}')
+    except EidyiaConfig.ConfigError as err:
+        exit_error(f'Incorrect configuration in {args.conf}: {err}')
 
     #
     # Validate credentials
     #
-    discord_api_token = extract_token(config)
+    discord_api_token = config.discord.token if config.discord else None
     if not discord_api_token:
         exit_error('No Discord API token provided, cannot initialise bot')
 

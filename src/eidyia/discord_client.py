@@ -9,38 +9,21 @@ See COPYING for use and distribution terms.
 import asyncio
 import datetime
 import discord
-from enum import IntEnum
 import logging
-from typing import Any, Dict, Optional, Self
+from typing import List, Optional, Tuple
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
+from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.subscriber_api import Beholder as EidyiaBeholder
 from src.eidyia.subscriber_api import Subscriber as EidyiaSubscriber
 from src.eidyia.thread_utils import ConcurrentFlag
 import src.eidyia.ui_utils as eidyia_ui_utils
 
 
-# Default Site Status site
-STATUS_SITE_URL = 'https://status.wesnoth.org/'
-
-# Site Status Site icon, used for Discord embeds
-STATUS_SITE_ICON = 'https://status.wesnoth.org/wesmere/logo-minimal-64@2x.png'
-
-# Title used for Discord embeds
-STATUS_TITLE = 'Wesnoth.org Site Status Survey'
-
-# Default Discord activity type
-DISCORD_ACTIVITY = discord.ActivityType.watching
-
-# Discord status text
-DISCORD_STATUS = 'status.wesnoth.org'
-
 # Discord status text used during the initial sync
 INITIAL_DISCORD_STATUS = '(connecting...)'
 
-# Used in embeds when a DNS issue has been found
-DNS_WARNING_MARKDOWN = ":warning: **WARNING:** One or more facilities or instances report DNS issues. While in the best case this could simply be the result of an Eidyia host misconfiguration, it could also be a consequence of a Wesnoth.org DNS provider issue, which warrants **immediate** attention."
 #
 # Internal parameters - do NOT change
 #
@@ -52,6 +35,8 @@ MONITOR_LOOP_INTERVAL_SECS = 1  # 5
 MAX_DISCORD_EMBED_FIELDS = 25
 DISCORD_EMBED_COLS = 3
 
+EidyiaChannelList = List[Tuple[int, int]]
+
 log = logging.getLogger('DiscordClient')
 
 
@@ -59,13 +44,6 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
     '''
     Main Eidyia application class.
     '''
-    class ConfigError(Exception):
-        '''
-        Exception type thrown when an invalid configuration value is found.
-        '''
-        def __init__(self, message):
-            self.message = message
-
     class UnsupportedError(Exception):
         '''
         Exception type thrown if we run into an unsupported scenario.
@@ -73,27 +51,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         def __init__(self, message):
             self.message = message
 
-    class ReportMode(IntEnum):
-        '''
-        Update report modes.
-        '''
-        REPORT_MINIMAL_DIFF = 0
-        REPORT_OPTIONAL_DIFF = 1
-        REPORT_ALWAYS_FULL = 2
-
-        @staticmethod
-        def from_json(value: Any) -> Self:
-            if isinstance(value, bool):
-                if value is False:
-                    return EidyiaDiscordClient.ReportMode.REPORT_ALWAYS_FULL
-                if value is True:
-                    return EidyiaDiscordClient.ReportMode.REPORT_MINIMAL_DIFF
-            if isinstance(value, str):
-                if value == "strict":
-                    return EidyiaDiscordClient.ReportMode.REPORT_OPTIONAL_DIFF
-            raise EidyiaDiscordClient.ConfigError(f'Bad "changes_only" value {value}')
-
-    def __init__(self, config: Dict, *args, **kwargs):
+    def __init__(self, config: EidyiaConfig, *args, **kwargs):
         '''
         Constructor.
 
@@ -106,21 +64,24 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         self._report = None
         self._old_report = None
-        self._report_mode = EidyiaDiscordClient.ReportMode.REPORT_ALWAYS_FULL
         self._force_full_report_once = False
         self._beholder = None
         self._task = None
         self._should_refresh = ConcurrentFlag()
-        self._guilds = {}
+        self._report_channels: EidyiaChannelList = []
+        self._config = config
 
-        # Process configuration
-        self.set_config(config)
+        if not self.config.discord:
+            raise EidyiaDiscordClient.UnsupportedError('No Discord configuration provided')
+
+        for gid, channels in self.config.discord.guilds.items():
+            self._report_channels += [(gid, cid) for cid in channels]
 
         # Use a temporary Discord presence while we are setting things up. The
         # routine that broadcasts the initial status report will take it from
         # here later.
         # NOTE: Discord doesn't allow bots to use 'custom' activities, sadly.
-        initial_act = discord.Activity(type=self._user_activity,
+        initial_act = discord.Activity(type=self.config.discord.activity,
                                        name=INITIAL_DISCORD_STATUS)
         super().__init__(*args,
                          **kwargs,
@@ -141,63 +102,22 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         if self._beholder is not None:
             self._beholder.stop()
 
-    def set_config(self, config):
+    @property
+    def config(self) -> EidyiaConfig:
         '''
-        Updates bot configuration parameters from JSON.
+        Accesses configuration properties from EidyiaConfig.
         '''
+        return self._config
 
-        #
-        # Validation pass
-        #
+    @property
+    def report_channels(self) -> EidyiaChannelList:
+        '''
+        List of Discord channels where reports should be posted.
 
-        if not isinstance(config, dict):
-            raise EidyiaDiscordClient.ConfigError('config must be a dict')
-        if 'discord' not in config \
-           or not isinstance(config['discord'], dict):
-            raise EidyiaDiscordClient.ConfigError('Missing or invalid "discord" configuration block')
-
-        discord_config = config['discord']
-
-        if 'guilds' not in discord_config \
-           or not isinstance(discord_config['guilds'], dict) \
-           or len(discord_config['guilds']) == 0:
-            raise EidyiaDiscordClient.ConfigError('Missing or invalid "guilds" block in "discord" configuration block')
-
-        #
-        # Common configuration
-        #
-
-        self._status_title = config.get('status_title', STATUS_TITLE)
-        self._status_site_url = config.get('status_site_url', STATUS_SITE_URL)
-        self._status_site_icon = config.get('status_site_icon', STATUS_SITE_ICON)
-
-        #
-        # Discord configuration
-        #
-
-        activity_values = {
-            "playing":   discord.ActivityType.playing,
-            "streaming": discord.ActivityType.streaming,
-            "listening": discord.ActivityType.listening,
-            "watching":  discord.ActivityType.watching,
-            "custom":    discord.ActivityType.custom,
-            "competing": discord.ActivityType.competing,
-        }
-
-        cfg_activity = discord_config.get('activity')
-        self._user_activity = activity_values[cfg_activity] \
-            if cfg_activity in activity_values else DISCORD_ACTIVITY
-        self._user_status = discord_config.get('status', DISCORD_STATUS)
-        self._dns_warning_text = discord_config.get('dns_notice', DNS_WARNING_MARKDOWN)
-        self._report_mode = EidyiaDiscordClient.ReportMode.from_json(discord_config.get('changes_only', True))
-
-        self._guilds.clear()
-        for guild_id, channels in discord_config['guilds'].items():
-            if not isinstance(channels, (tuple, list)) or not channels:
-                log.critical(f'Guild configuration for {guild_id} needs to be a non-empty list of channels')
-                continue
-            self._guilds[int(guild_id)] = [int(ch) for ch in channels]
-            log.info(f'* Configured guild {guild_id}')
+        The result is a list of pairs of ints where the first item is the
+        guild id and the second item is the channel id.
+        '''
+        return self._report_channels
 
     def attach_report(self, report: V1Report):
         '''
@@ -347,11 +267,11 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         detailed = use_diff = strict_changes_only = None
         if not self._force_full_report_once:
-            if self._report_mode == EidyiaDiscordClient.ReportMode.REPORT_MINIMAL_DIFF:
+            if self.config.discord.report_mode == EidyiaReportMode.REPORT_MINIMAL_DIFF:
                 detailed = False
                 use_diff = True
                 strict_changes_only = False
-            elif self._report_mode == EidyiaDiscordClient.ReportMode.REPORT_OPTIONAL_DIFF:
+            elif self.config.discord.report_mode == EidyiaReportMode.REPORT_OPTIONAL_DIFF:
                 detailed = False
                 use_diff = True
                 strict_changes_only = True
@@ -376,12 +296,11 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
                 log.critical('No report generated despite skip_unchanged=False, '
                              'potentially invalid report or Eidyia bug!')
         else:
-            for guild_id, channel_ids in self._guilds.items():
-                for channel_id in channel_ids:
-                    guild = self.get_guild(guild_id)
-                    channel = self.get_channel(channel_id)
-                    log.info(f'Sending report to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
-                    await channel.send(embed=discord_report)
+            for guild_id, channel_id in self.report_channels:
+                guild = self.get_guild(guild_id)
+                channel = self.get_channel(channel_id)
+                log.info(f'Sending report to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
+                await channel.send(embed=discord_report)
         # Once everything is done without errors for the fifrst time, we are
         # ready to proceed with differential reports.
         self._force_full_report_once = False
@@ -393,7 +312,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         This is only to be used when an error occurred while retrieving or
         parsing a report.
         '''
-        if self._report_mode == EidyiaDiscordClient.ReportMode.REPORT_OPTIONAL_DIFF:
+        if self.config.discord.report_mode == EidyiaReportMode.REPORT_OPTIONAL_DIFF:
             # The users are probably not interested. Hoping someone watches
             # the console logs!
             return
@@ -404,15 +323,14 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         embed = discord.Embed(colour=colour,
                               description=text,
                               timestamp=datetime.datetime.now())
-        embed.set_author(name=self._status_title,
-                         icon_url=self._status_site_icon,
-                         url=self._status_site_url)
-        for guild_id, channel_ids in self._guilds.items():
-            for channel_id in channel_ids:
-                guild = self.get_guild(guild_id)
-                channel = self.get_channel(channel_id)
-                log.info(f'Sending error notification to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
-                await channel.send(embed=embed)
+        embed.set_author(name=self.config.status_title,
+                         icon_url=self.config.status_site_icon,
+                         url=self.config.status_site_url)
+        for guild_id, channel_id in self.report_channels:
+            guild = self.get_guild(guild_id)
+            channel = self.get_channel(channel_id)
+            log.info(f'Sending error notification to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
+            await channel.send(embed=embed)
 
     def format_report(self,
                       show_greens: bool = False,
@@ -466,7 +384,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         for facility in self._report.facilities():
             if facility.status == V1Report.FacilityStatus.STATUS_DNS_IS_BAD \
                or [inst for inst in facility.instances if inst.status == V1Report.FacilityStatus.STATUS_DNS_IS_BAD]:
-                lines += ['', self._dns_warning_text]
+                lines += ['', self.config.discord.dns_notice]
                 break
 
         #
@@ -541,9 +459,9 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         embed = discord.Embed(colour=embed_colour,
                               description='\n'.join(lines),
                               timestamp=post_ts)
-        embed.set_author(name=self._status_title,
-                         icon_url=self._status_site_icon,
-                         url=self._status_site_url)
+        embed.set_author(name=self.config.status_title,
+                         icon_url=self.config.status_site_icon,
+                         url=self.config.status_site_url)
         for field in fields:
             embed.add_field(name=field['name'], value=field['value'])
 
@@ -554,7 +472,8 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         Updates Discord activity status to reflect the Valen report.
         '''
         status = self._report.status_summary()
-        act = discord.Activity(type=self._user_activity, name=self._user_status)
+        act = discord.Activity(type=self.config.discord.activity,
+                               name=self.config.discord.status)
         discord_status = eidyia_ui_utils.status_to_discord_presence(status)
 
         await self.change_presence(activity=act, status=discord_status)

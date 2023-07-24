@@ -100,6 +100,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         Releases resources such as filesystem monitoring objects.
         '''
+        self.unsubscribe()
         if self._beholder is not None:
             self._beholder.stop()
 
@@ -129,8 +130,9 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         if self._report is not None:
             raise EidyiaDiscordClient.UnsupportedError('double attach attempt')
         self._report = report
-        self._beholder = EidyiaBeholder(report.filename(), self)
+        self._beholder = EidyiaBeholder(report.filename())
         self._beholder.attach()
+        self.subscribe()
         log.debug('eidyia is subscribed to valen report')
 
     async def eidyia_monitoring_task(self):

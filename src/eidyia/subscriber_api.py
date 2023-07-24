@@ -9,17 +9,35 @@ See COPYING for use and distribution terms.
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
-from typing import List, Union
+from typing import final, List, Union
 import watchdog.events
 import watchdog.observers
 
 log = logging.getLogger('eidyia.subscriber_api')
+
+_subscribers = []
 
 
 class Subscriber(ABC):
     '''
     Eidyia update events subscriber abstract class.
     '''
+    @final
+    def subscribe(self):
+        '''
+        Subscribes to Eidyia core notifications.
+        '''
+        global _subscribers
+        _subscribers.append(self)
+
+    @final
+    def unsubscribe(self):
+        '''
+        Unsubscribes from Eidyia core notifications.
+        '''
+        global _subscribers
+        _subscribers = [sub for sub in _subscribers if sub is not self]
+
     @abstractmethod
     def on_eidyia_update(self):
         '''
@@ -51,19 +69,9 @@ class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
     whenever a creation event is dispatched, we are notifying subscribers of a
     completely coherent file and not one that is not fully written to disk.)
     '''
-    def __init__(self, path: Path, subscribers: SubscriberList = None):
+    def __init__(self, path: Path):
         super().__init__()
         self.path = path
-        self.subscribers = []
-        if subscribers is not None:
-            self.subscribe(subscribers)
-
-    def subscribe(self, subscribers: SubscriberList):
-        if isinstance(subscribers, Subscriber):
-            self.subscribers.append(subscribers)
-        else:
-            self.subscribers += subscribers.copy()
-        log.debug('EidyiaFSEventHandler.subscribe(): subscribed')
 
     def on_any_event(self, event: watchdog.events.FileSystemEvent):
         '''
@@ -77,11 +85,11 @@ class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
             event_path = Path(event.dest_path).resolve()
 
         if event_path is not None and event_path == self.path:
-            if not self.subscribers:
+            if not _subscribers:
                 log.critical('EidyiaEventHandler.on_any_event(): no subscribers')
                 return
             log.debug(f'EidyiaEventHandler.on_any_event(): ACK {event}')
-            for subscriber in self.subscribers:
+            for subscriber in _subscribers:
                 log.debug('EidyiaEventHandler.on_any_event(): notifying subscriber')
                 subscriber.on_eidyia_update()
 
@@ -96,17 +104,13 @@ class Beholder:
     Valen's coherency guarantee.
     '''
     def __init__(self,
-                 filename: str,
-                 controlling_sub: Subscriber):
+                 filename: str):
         '''
         Constructor.
 
         Parameters:
             filename                Path to a file to monitor.
-            controlling_sub         Controlling object (which acts as the
-                                    single subscriber of the event handler).
         '''
-        self._controlling_sub = controlling_sub
         self._event_handler = None
         self._observer = None
         self._path = Path(filename).resolve()
@@ -116,8 +120,7 @@ class Beholder:
         Attaches (but does not start) a new observer and event handler pair.
         '''
         self._observer = watchdog.observers.Observer()
-        self._event_handler = EidyiaEventHandler(self._path,
-                                                 self._controlling_sub)
+        self._event_handler = EidyiaEventHandler(self._path)
         # Observe the parent dir, not the singular file!
         self._observer.schedule(self._event_handler, self._path.parent, recursive=False)
 

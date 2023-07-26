@@ -322,33 +322,33 @@ class Report:
         if not self._filename:
             return False
         try:
-            file = open(self._filename, mode='r', encoding='utf-8')
-            self._data = json.load(file)
-            if not self._data or not isinstance(self._data, dict):
-                raise Report.FormatError('Empty or invalid report file')
+            with open(self._filename, mode='r', encoding='utf-8') as file:
+                self._data = json.load(file)
+                if not self._data or not isinstance(self._data, dict):
+                    raise Report.FormatError('Empty or invalid report file')
 
-            #
-            # Basic parameters
-            #
-            self._refresh_interval = self._data.get('refresh_interval', DEFAULT_REFRESH_INTERVAL)
-            self._timestamp = self._data.get('ts', 0)
+                #
+                # Basic parameters
+                #
+                self._refresh_interval = self._data.get('refresh_interval', DEFAULT_REFRESH_INTERVAL)
+                self._timestamp = self._data.get('ts', 0)
 
-            #
-            # Process facilities from JSON
-            #
-            facilities = []
-            facilities_json = self._data.get('facilities', [])
-            if not facilities_json or not isinstance(facilities_json, (list, tuple)):
-                raise Report.FormatError('Facility list ("facilities") is invalid, empty, or not a list')
-            for facility_json in facilities_json:
-                # Magic!
-                facilities.append(Report.Facility(facility_json))
+                #
+                # Process facilities from JSON
+                #
+                facilities = []
+                facilities_json = self._data.get('facilities', [])
+                if not facilities_json or not isinstance(facilities_json, (list, tuple)):
+                    raise Report.FormatError('Facility list ("facilities") is invalid, empty, or not a list')
+                for facility_json in facilities_json:
+                    # Magic!
+                    facilities.append(Report.Facility(facility_json))
 
-            # No more validation done here. We assume good faith from Valen at
-            # all times because we kinda got told she's a good character and
-            # not evil and we just assume that to be true for some reason...?
-            self._facilities = facilities
-            return True
+                # No more validation done here. We assume good faith from Valen at
+                # all times because we kinda got told she's a good character and
+                # not evil and we just assume that to be true for some reason...?
+                self._facilities = facilities
+                return True
         except (OSError, json.JSONDecodeError) as err:
             # Oopsies we did a boo-boo (or maybe Valen did, who knows)
             raise Report.FileError(f'Cannot read report file: {err}')

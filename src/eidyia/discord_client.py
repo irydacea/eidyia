@@ -15,9 +15,8 @@ from typing import List, Optional, Tuple
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
-from src.eidyia.subscriber_api import Beholder as EidyiaBeholder
-from src.eidyia.subscriber_api import Subscriber as EidyiaSubscriber
-from src.eidyia.thread_utils import ConcurrentFlag
+from src.eidyia.core import eidyia_core, eidyia_critical_section
+from src.eidyia.subscriber_api import EidyiaSubscriber
 import src.eidyia.ui_utils as eidyia_ui_utils
 
 
@@ -28,7 +27,7 @@ INITIAL_DISCORD_STATUS = '(connecting...)'
 # Internal parameters - do NOT change
 #
 
-MONITOR_LOOP_INTERVAL_SECS = 1  # 5
+_MONITOR_LOOP_INTERVAL_SECS = 1
 
 # Do NOT change this unless Discord changes their limits or formatting
 
@@ -63,12 +62,10 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             config: An EidyiaConfig instance holding the current Eidyia
                     application configuration.
         '''
-        self._report = None
-        self._old_report = None
-        self._force_full_report_once = False
-        self._beholder = None
+        log.debug('Initialising')
+
         self._task = None
-        self._should_refresh = ConcurrentFlag()
+        self._force_full_report_once = False
         self._report_channels: EidyiaChannelList = []
         self._config = config
 
@@ -89,20 +86,24 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
                          intents=discord.Intents(guilds=True),
                          activity=initial_act,
                          status=discord.Status.online)
+        super(discord.Client, self).__init__()
 
-    def __enter__(self):
-        '''
-        Allocates resources (currently unused).
-        '''
+    async def __aenter__(self):
+        # Eidyia first because it
+        await super(discord.Client, self).__aenter__()
+        await super().__aenter__()
         return self
 
-    def __exit__(self, *args, **kwargs):
+    async def __aexit__(self, *args, **kwargs):
+        await super(discord.Client, self).__aexit__(*args, **kwargs)
+        await super().__aexit__(*args, **kwargs)
+
+    async def start(self, reconnect: bool = True) -> None:
         '''
-        Releases resources such as filesystem monitoring objects.
+        Starts the bot.
         '''
-        self.unsubscribe()
-        if self._beholder is not None:
-            self._beholder.stop()
+        await self.login(self.config.discord.token)
+        await self.connect(reconnect=reconnect)
 
     @property
     def config(self) -> EidyiaConfig:
@@ -121,125 +122,53 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         return self._report_channels
 
-    def attach_report(self, report: V1Report):
+    async def _eidyia_subscription_task(self):
         '''
-        Connects a monitoreable Valen report into this instance.
-
-        This needs to be called before running the bot.
+        Watches for and handles Eidyia subscription updates.
         '''
-        if self._report is not None:
-            raise EidyiaDiscordClient.UnsupportedError('double attach attempt')
-        self._report = report
-        self._beholder = EidyiaBeholder(report.filename())
-        self._beholder.attach()
-        self.subscribe()
-        log.debug('eidyia is subscribed to valen report')
-
-    async def eidyia_monitoring_task(self):
-        '''
-        Performs monitoring tasks and reacts to their results.
-        '''
-        # In reality, monitoring is done on a separate thread by a watchdog
-        # observer, and the event handler notifies the main thread back if
-        # there is anything we need to do, by using a locking ConcurrentFlag
-        # object.
-        if self._beholder is None:
-            # Somehow we ran before monitoring was fully set up. This should
-            # never happen.
-            raise EidyiaDiscordClient.UnsupportedError('invalid task configuration')
         await self.wait_until_ready()
-
-        # Ready to go!
-        self._beholder.start()
-        log.debug('Report file monitoring started')
-
-        unhandled_exc_count = 0
-
-        while not self.is_closed() and self._beholder.active():
-            if self._should_refresh.get():
-                try:
-                    await self.do_refresh()
-                except Exception:
-                    extra = ''
-                    if unhandled_exc_count == 0:
-                        extra = ' (first chance)'
-                    elif unhandled_exc_count == 1:
-                        extra = ' (second chance)'
-                    else:
-                        extra = ' (unbound)'
-                    log.critical(f'Unhandled exception in Eidyia monitoring task{extra}')
-                    log.exception(
-                        '\n'
-                        '***\n'
-                        '*** Unhandled exception\n'
-                        '***\n\n')
-                    if unhandled_exc_count >= 2:
-                        raise
-                    else:
-                        unhandled_exc_count += 1
-                finally:
-                    # Ensure we don't try to reload again until next
-                    # event-mandated refresh even if we got here after an
-                    # exception raised by the reload or chat post process.
-                    self._should_refresh.clear()
-            await asyncio.sleep(MONITOR_LOOP_INTERVAL_SECS)
-
-    async def do_refresh(self):
-        '''
-        Performs a report reload and broadcast, or broadcasts an error message
-        if something failed.
-
-        Only exceptions reload to the report file or posting to Discord are
-        handled and cancelled here. Other exceptions will be propagated to the
-        caller to handle as desired.
-        '''
-        log.debug('Reloading report file from monitor trigger')
-        self._old_report = self._report.clone()
-        verbose_post_next = False
-        try:
-            # except clauses in this block may raise exceptions too due to
-            # attempting to interact with Discord to inform errors.
+        while not self.is_closed():
+            verbose_post_next = False
             try:
-                self._report.reload()
-                log.info('Broadcasting new status report')
-                await self.do_broadcast_report_update()
-            except V1Report.FileError as report_err:
-                log.error(f'Could not reload report file. {report_err}')
-                # While Report.reload() does attempt to ensure
-                # consistency in this situation, it probably makes
-                # more sense to start fresh on the next update without
-                # a diff.
+                if self.eidyia_update.get():
+                    await self._eidyia_subscription_task_crit()
+            except discord.ConnectionClosed as err:
+                # At some point we'll reconnect. Because we may have missed a
+                # whole report update, next update should be a full report.
+                # TODO: schedule a post for as soon as we reconnect again
                 verbose_post_next = True
-                log.info('Broadcasting report error status')
-                await self.do_broadcast_report_error()
-        except discord.ConnectionClosed as err:
-            # At some point we'll reconnect. Because we may have missed a
-            # whole report update, next update should be a full report.
-            # TODO: schedule a post for as soon as we reconnect again
-            verbose_post_next = True
-            log.error(f'Discord connection terminated during refresh: {err}')
-        except (discord.Forbidden,
-                discord.NotFound,
-                discord.GatewayNotFound,
-                discord.DiscordServerError) as err:
-            # Same as above, people may be missing out on important report
-            # updates while we are unable to post.
-            verbose_post_next = True
-            log.error(f'Unable to post to Discord: {err}')
-        finally:
-            if verbose_post_next:
-                log.warning('Next broadcast will be a full report due to errors')
-                self._old_report = None
-                self._force_full_report_once = True
+                log.error(f'Discord connection terminated during refresh: {err}')
+            except (discord.Forbidden,
+                    discord.NotFound,
+                    discord.GatewayNotFound,
+                    discord.DiscordServerError) as err:
+                # Same as above, people may be missing out on important report
+                # updates while we are unable to post.
+                verbose_post_next = True
+                log.error(f'Unable to post to Discord: {err}')
+            finally:
+                if verbose_post_next:
+                    log.warning('Next broadcast will be a full report due to errors')
+                    self._force_full_report_once = True
+                self.eidyia_update.clear()
+                await asyncio.sleep(_MONITOR_LOOP_INTERVAL_SECS)
+
+    @eidyia_critical_section
+    async def _eidyia_subscription_task_crit(self):
+        # Got an error enqueued?
+        if eidyia_core().report_error is not None:
+            await self.do_broadcast_report_error()
+            return
+        # Handle a normal report
+        log.info('Broadcasting new status report')
+        await self.do_broadcast_report_update()
 
     async def setup_hook(self):
         '''
-        Performs setup of the monitoring task.
-
-        This does NOT launch the monitoring task. Monitoring commences only
-        once the client runs the couroutine for the first time.
+        Performs setup of the Eidyia subscription task.
         '''
-        self._task = self.loop.create_task(self.eidyia_monitoring_task())
+        log.debug('setup hook')
+        self._task = self.loop.create_task(self._eidyia_subscription_task())
 
     async def on_connect(self):
         '''
@@ -247,6 +176,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         log.info('Connected to Discord')
 
+    @eidyia_critical_section
     async def on_ready(self):
         '''
         Handles the on_ready event.
@@ -254,15 +184,6 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         log.info(f'Joined Discord as {self.user}, broadcasting initial status report')
         self._force_full_report_once = True  # First report is always in full
         await self.do_broadcast_report_update()
-
-    def on_eidyia_update(self):
-        '''
-        Handles the on_eidyia_update event.
-        '''
-        # The eidyia_monitoring_task coroutine (running in a different thread)
-        # regularly checks this flag and triggers a report reload and repost
-        # as needed. We don't need to do anything else here.
-        self._should_refresh.set()
 
     async def do_broadcast_report_update(self):
         '''
@@ -320,8 +241,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             # the console logs!
             return
 
-        text = 'An error occurred while reading the status report. ' \
-               'Check the console logs for details.'
+        text = eidyia_core().report_error
         colour = eidyia_ui_utils.status_to_discord_colour(V1Report.FacilityStatus.STATUS_UNKNOWN)
         embed = discord.Embed(colour=colour,
                               description=text,
@@ -358,22 +278,23 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         listing. This is not advisable because their names tend to suck and
         use DNS-only probes instead of something more meaningful.
         '''
+        core = eidyia_core()
         diff = None
         # Diff magic coming straight from the source
-        if use_diff and self._old_report is not None:
-            diff = V1StatusDiff(self._old_report, self._report)
+        if use_diff and core.previous_report is not None:
+            diff = V1StatusDiff(core.previous_report, core.report)
             if strict_changes_only and not diff.has_changes():
                 return None
         else:
             # HACK to obtain a "diff" for use with the common loop below
-            diff = V1StatusDiff(self._report, None)
+            diff = V1StatusDiff(core.report, None)
 
-        overall_status = self._report.status_summary()
+        overall_status = core.report.status_summary()
         summary_label = eidyia_ui_utils.status_to_caption(overall_status)
         summary_emoji = eidyia_ui_utils.status_to_discord_emoji(overall_status)
         summary_padding = '\u00a0' * 28  # Kinda arbitrary and desktop-centric
         embed_colour = eidyia_ui_utils.status_to_discord_colour(overall_status)
-        post_ts = datetime.datetime.fromtimestamp(self._report.last_refresh())
+        post_ts = datetime.datetime.fromtimestamp(core.report.last_refresh())
 
         lines = [f'**Overall Status**{summary_padding}{summary_emoji} {summary_label}']
         fields = []
@@ -384,7 +305,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
 
         # Check if there are DNS-impacted instances. If we find any, include a
         # notice right after the overall status.
-        for facility in self._report.facilities():
+        for facility in core.report.facilities():
             if facility.status == V1Report.FacilityStatus.STATUS_DNS_IS_BAD \
                or [inst for inst in facility.instances if inst.status == V1Report.FacilityStatus.STATUS_DNS_IS_BAD]:
                 lines += ['', self.config.discord.dns_notice]
@@ -474,7 +395,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         Updates Discord activity status to reflect the Valen report.
         '''
-        status = self._report.status_summary()
+        status = eidyia_core().report.status_summary()
         act = discord.Activity(type=self.config.discord.activity,
                                name=self.config.discord.status)
         discord_status = eidyia_ui_utils.status_to_discord_presence(status)

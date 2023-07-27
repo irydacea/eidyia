@@ -7,15 +7,15 @@ See COPYING for use and distribution terms.
 '''
 
 import argparse
+import asyncio
 import logging
 import sys
 
 from src.eidyia.config import EidyiaConfig
+from src.eidyia.core import EidyiaCore
 from src.eidyia.discord_client import EidyiaDiscordClient
 from src.valen.V1Report import Report as V1Report
 
-# Version number
-EIDYIA_VERSION = '0.0.1'
 
 # Default path to eidyia config
 CONFIG_PATH = './eidyia.jsonc'
@@ -57,7 +57,7 @@ def main():
                         help='specifies the path to the Valen report JSON file')
     args = parser.parse_args()
 
-    print(f'''codename "Eidyia" version {EIDYIA_VERSION}
+    print(f'''codename "Eidyia" version {EidyiaCore.version}
 
     Config file path: {args.config}
     Report file path: {args.report}
@@ -88,32 +88,27 @@ def main():
     except EidyiaConfig.ConfigError as err:
         exit_error(f'Incorrect configuration in {args.config}:\n'
                    f'  {err}')
+    if not config.irc and not config.discord:
+        exit_error('At least one client (Discord, IRC) must be configured. '
+                   'Cannot continue.')
 
     #
-    # Validate credentials
+    # Set up Eidyia and its client components
     #
-    discord_api_token = config.discord.token if config.discord else None
-    if not discord_api_token:
-        exit_error('No Discord API token provided, cannot initialise bot')
-
-    #
-    # Perform an initial validation check of the report file
-    #
-    report = None
-    report_filename = args.report
     try:
-        report = V1Report(report_filename)
+        eidyia = EidyiaCore(args.report)
     except (V1Report.FileError, V1Report.FormatError) as err:
-        exit_error(f'Could not read report from {report_filename}: {err}')
+        exit_error(f'Could not read report from {args.report}: {err}')
 
-    #
-    # Setup Discord client
-    #
-    with EidyiaDiscordClient(config) as discord_client:
-        # We know the report file is initially valid, so start monitoring it.
-        discord_client.attach_report(report)
-        # Run Discord bot
-        discord_client.run(discord_api_token)
+    if config.discord:
+        async def discord_client_coro():
+            async with EidyiaDiscordClient(config) as discord_client:
+                discord_client.subscribe()
+                await discord_client.start()
+        eidyia.add_task('DiscordClient', discord_client_coro())
+
+    # Transfer control to the core, which will run forever
+    eidyia.run()
 
 
 if __name__ == '__main__':

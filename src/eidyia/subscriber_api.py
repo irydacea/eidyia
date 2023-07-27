@@ -9,19 +9,27 @@ See COPYING for use and distribution terms.
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
-from typing import final, List, Union
+from typing import final, List
 import watchdog.events
 import watchdog.observers
 
+from .thread_utils import ConcurrentFlag
+
 log = logging.getLogger('eidyia.subscriber_api')
 
-_subscribers = []
+_subscribers: List['EidyiaSubscriber'] = []
 
 
-class Subscriber(ABC):
+class EidyiaSubscriber:
     '''
     Eidyia update events subscriber abstract class.
     '''
+    def __init__(self):
+        '''
+        Constructor.
+        '''
+        self._eidyia_subscription_flag = ConcurrentFlag()
+
     @final
     def subscribe(self):
         '''
@@ -38,15 +46,60 @@ class Subscriber(ABC):
         global _subscribers
         _subscribers = [sub for sub in _subscribers if sub is not self]
 
-    @abstractmethod
-    def on_eidyia_update(self):
+    async def __aenter__(self):
+        '''
+        Allocates resouces (unused).
+        '''
+        return self
+
+    async def __aexit__(self, *args, **kwargs):
+        '''
+        Releases resources, including subscriptions.
+        '''
+        self.unsubscribe()
+
+    def _eidyia_notify_subscriber(self):
         '''
         Handles update event reception.
+
+        Beware that this may be executed from a different thread than the one
+        running all other functions.
         '''
-        pass
+        self._eidyia_subscription_flag.set()
+
+    @staticmethod
+    def eidyia_notify_all():
+        '''
+        Notifies all Eidyia subscribers.
+
+        Beware that this may be executed from a different thread than the one
+        running all other functions.
+        '''
+        global _subscribers
+        if not _subscribers:
+            log.critical('EidyiaSubscriber.notify_all(): no subscribers? :c')
+            return
+        for sub in _subscribers:
+            log.debug(f'EidyiaSubscriber.notify_all(): notifying subscriber {sub}')
+            sub._eidyia_notify_subscriber()
+
+    @property
+    def eidyia_update(self) -> ConcurrentFlag:
+        '''
+        Retrieves the update event flag.
+        '''
+        return self._eidyia_subscription_flag
 
 
-SubscriberList = Union[Subscriber, List[Subscriber]]
+class EidyiaSystemListener(ABC):
+    '''
+    EidyiaCore/EidyiaEventHandler implementation detail.
+    '''
+    @abstractmethod
+    def _notify_from_external_thread(self):
+        '''
+        EidyiaCore/EidyiaEventHandler implementation detail.
+        '''
 
 
 class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
@@ -69,13 +122,16 @@ class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
     whenever a creation event is dispatched, we are notifying subscribers of a
     completely coherent file and not one that is not fully written to disk.)
     '''
-    def __init__(self, path: Path):
+    def __init__(self,
+                 owner: EidyiaSystemListener,
+                 path: Path):
         super().__init__()
+        self.owner = owner
         self.path = path
 
     def on_any_event(self, event: watchdog.events.FileSystemEvent):
         '''
-        Handle filesystem events and notify subscribers.
+        Handle filesystem events and notify EidyiaCore.
         '''
         event_path = None
         if isinstance(event, (watchdog.events.FileCreatedEvent,
@@ -85,16 +141,11 @@ class EidyiaEventHandler(watchdog.events.FileSystemEventHandler):
             event_path = Path(event.dest_path).resolve()
 
         if event_path is not None and event_path == self.path:
-            if not _subscribers:
-                log.critical('EidyiaEventHandler.on_any_event(): no subscribers')
-                return
-            log.debug(f'EidyiaEventHandler.on_any_event(): ACK {event}')
-            for subscriber in _subscribers:
-                log.debug('EidyiaEventHandler.on_any_event(): notifying subscriber')
-                subscriber.on_eidyia_update()
+            log.debug('EidyiaEventHandler: notifying core async loop')
+            self.owner._notify_from_external_thread()
 
 
-class Beholder:
+class EidyiaBeholder:
     '''
     Eidyia file monitor manager.
 
@@ -104,6 +155,7 @@ class Beholder:
     Valen's coherency guarantee.
     '''
     def __init__(self,
+                 owner: EidyiaSystemListener,
                  filename: str):
         '''
         Constructor.
@@ -112,6 +164,7 @@ class Beholder:
             filename                Path to a file to monitor.
         '''
         self._event_handler = None
+        self._owner = owner
         self._observer = None
         self._path = Path(filename).resolve()
 
@@ -120,7 +173,7 @@ class Beholder:
         Attaches (but does not start) a new observer and event handler pair.
         '''
         self._observer = watchdog.observers.Observer()
-        self._event_handler = EidyiaEventHandler(self._path)
+        self._event_handler = EidyiaEventHandler(self._owner, self._path)
         # Observe the parent dir, not the singular file!
         self._observer.schedule(self._event_handler, self._path.parent, recursive=False)
 

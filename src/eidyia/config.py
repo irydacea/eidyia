@@ -155,6 +155,8 @@ class EidyiaConfig:
             self.discord.dns_notice = self._get('discord.dns_notice', self.discord.dns_notice)
             self.discord.report_mode = EidyiaReportMode.from_json(self._get('discord.changes_only', True))
             self.discord.token = self._get('discord.token')
+            if not isinstance(self.discord.token, str) or not self.discord.token:
+                raise EidyiaConfig.ConfigError('discord.token must be a non-empty string value')
 
             guilds = self._get('discord.guilds')
             if not isinstance(guilds, dict) or not guilds:

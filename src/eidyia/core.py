@@ -83,7 +83,7 @@ class EidyiaCore(EidyiaSystemListener):
 
         self._beholder: EidyiaBeholder = EidyiaBeholder(self, self.filename)
         self._beholder.attach()
-        log.debug(f'subscribed to valen report from {self.filename}')
+        log.debug(f'Will observe valen report from {self.filename}')
 
     @property
     def debug_core(self) -> bool:

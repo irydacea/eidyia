@@ -12,7 +12,7 @@ import logging
 import sys
 
 from src.eidyia.config import EidyiaConfig
-from src.eidyia.core import EidyiaCore
+from src.eidyia.core import EidyiaCore, EidyiaNoTasksError
 from src.eidyia.discord_client import EidyiaDiscordClient
 from src.valen.V1Report import Report as V1Report
 
@@ -114,7 +114,10 @@ def main():
         eidyia.add_task('DiscordClient', discord_client_coro())
 
     # Transfer control to the core, which will run forever
-    eidyia.run()
+    try:
+        eidyia.run()
+    except EidyiaNoTasksError:
+        exit_error('All selected clients are unconfigured. Cannot continue.')
 
 
 if __name__ == '__main__':

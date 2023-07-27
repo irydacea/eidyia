@@ -45,6 +45,10 @@ class EidyiaResourceSharingViolation(Exception):
     pass
 
 
+class EidyiaNoTasksError(Exception):
+    pass
+
+
 class EidyiaCore(EidyiaSystemListener):
     '''
     Eidyia's monitoring and asynchronous I/O infrastructure core.
@@ -226,6 +230,8 @@ class EidyiaCore(EidyiaSystemListener):
         Performs asynchronous execution of all assigned tasks, including the
         internal report monitor task.
         '''
+        if not self._async_items:
+            raise EidyiaNoTasksError
         try:
             asyncio.run(self._async_run(), debug=self._debug)
             return False

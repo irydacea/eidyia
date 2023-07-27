@@ -255,12 +255,17 @@ class EidyiaCore(EidyiaSystemListener):
             completed, pending = await asyncio.wait(
                 taskset, return_when=asyncio.FIRST_COMPLETED)
             for task in completed:
-                exc = task.exception()
-                if exc is not None:
+                try:
+                    # Give us the exception back
+                    _ = task.result()
+                except asyncio.CancelledError:
+                    pass  # Nothing to do here really
+                except Exception as exc:
                     log.critical(f'*** Eidyia child fatal exception: {type(exc).__name__} (in {taskid(task)})')
-                    log.critical(f'*** > {exc}')
+                    log.exception('')
                     am_ok = False
-                taskset.remove(task)
+                finally:
+                    taskset.remove(task)
             if completed or not am_ok:
                 for task in pending:
                     log.debug(f'Cancelling pending task {taskid(task)}')

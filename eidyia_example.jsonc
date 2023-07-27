@@ -11,7 +11,7 @@
 	// Icon associated with the Site Status page in report posts
 	"status_site_icon": "https://status.wesnoth.org/wesmere/logo-minimal-64@2x.png",
 
-	// [mandatory]
+	// [mandatory if "irc" group not set]
 	// The "discord" configuration group includes settings affecting
 	// the Discord reporting module.
 	"discord": {
@@ -62,5 +62,65 @@
 		// Discord message text added to the embed as a banner in the event
 		// that a DNS issue is found in the report.
 		"dns_notice": ":warning: **WARNING:** One or more facilities or instances report DNS issues. While in the best case this could simply be the result of an Eidyia host misconfiguration, it could also be a consequence of a Wesnoth.org DNS provider issue, which warrants **immediate** attention."
+	},
+
+	// [mandatory if "discord" group not set]
+	// The "irc" configuration group includes settings affecting the IRC
+	// reporting module.
+	"irc": {
+		// [optional but highly recommended]
+		// Nick or a list of candidate nicks to use when connecting to IRC.
+		"nick": "Eidyia",
+
+		// [optional]
+		// Username (user portion of user@host mask) to use when connecting to IRC.
+		"username": "eidyia",
+
+		// [optional]
+		// Real name to use when connecting to IRC, shown in /WHOIS.
+		"realname": "Eidyia IRC Client - https://status.wesnoth.org/",
+
+		// [mandatory]
+		// IRC server hostname to connect to.
+		"server_address": "irc.libera.chat",
+
+		// [optional]
+		// IRC server port to connect to. Defaults to 6667 if unspecified.
+		"server_port": 6667,
+
+		// [optional]
+		// Whether to use TLS for IRC server connection. Defaults to True if
+		// the server_port is 6697, False otherwise.
+		"server_tls": false,
+
+		// [optional]
+		// Sends a password to the server during connection.
+		"server_password": "IRC server password here",
+
+		// [optional]
+		// Specifies the usage of SASL authentication during connection.
+		"use_sasl": false,
+
+		// [mandatory if use_sasl is true]
+		// Specifies a username to send during SASL authentication.
+		"sasl_username": "NickServ account name here",
+
+		// [mandatory if use_sasl is true]
+		// Specifies a password to send during SASL authentication.
+		"sasl_password": "NickServ account password here",
+
+		// [optional]
+		// List of channels to join the bot to on connect. If not specified,
+		// the bot will not join any channels, which is probably useless.
+		// However, it will still be possible to send it a private message to
+		// trigger a private report.
+		"channels": "##sample-channel",
+
+		// [optional]
+		// List of IRC nick!user@host masks that will be allowed access to
+		// bot administration commands.
+		"admins": [
+			"*!*@wesnoth/developer/iris"
+		]
 	}
 }

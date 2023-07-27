@@ -8,11 +8,12 @@ See COPYING for use and distribution terms.
 
 from dataclasses import dataclass, field
 import discord
+import getpass
 from enum import IntEnum
 import jsonc_parser.errors
 import jsonc_parser.parser
 import logging
-from typing import Any, Optional, Self
+from typing import Any, List, Optional, Self, Union
 
 
 # Default Site Status site
@@ -33,6 +34,15 @@ DISCORD_STATUS = 'status.wesnoth.org'
 
 # Markdown text used in Discord embeds when a DNS issue has been found
 DISCORD_DNS_NOTICE = ':warning: **WARNING:** One or more facilities or instances report DNS issues. While in the best case this could simply be the result of an Eidyia host misconfiguration, it could also be a consequence of a Wesnoth.org DNS provider issue, which warrants **immediate** attention.'
+
+# Default IRC nick
+IRC_NICK = 'eidyia'
+
+# Default IRC username
+IRC_USERNAME = 'eidyia'
+
+# Default IRC real name/gecos
+IRC_REALNAME = 'Eidyia IRC Client - https://status.wesnoth.org/'
 
 #
 # Internal
@@ -101,6 +111,27 @@ class EidyiaConfig:
         dns_notice: str = DISCORD_DNS_NOTICE
         report_mode: EidyiaReportMode = EidyiaReportMode.REPORT_MINIMAL_DIFF
 
+    @dataclass
+    class IrcConfig:
+        '''
+        Values stored by the EidyiaConfig.irc property.
+        '''
+        nick: Union[str, List[str]] = IRC_NICK
+        username: str = IRC_USERNAME
+        realname: str = IRC_REALNAME
+
+        server_addr: str = ''
+        server_port: int = 6667
+        server_tls: bool = False
+        server_password: str = ''
+
+        use_sasl: bool = False
+        sasl_username: Optional[str] = None
+        sasl_password: Optional[str] = None
+
+        channels: list[str] = field(default_factory=list)
+        admins: list[str] = field(default_factory=list)
+
     class _PlaceholderValue:
         '''
         Implementation detail used to signal a missing value.
@@ -168,6 +199,54 @@ class EidyiaConfig:
                 self.discord.guilds[int(gid)] = [int(cid) for cid in channels]
                 log.info(f'* Configured guild {gid}')
 
+        # IRC client configuration items
+
+        if 'irc' not in self._data \
+           or not isinstance(self._data['irc'], dict):
+            log.warning('Missing or invalid "irc" configuration block')
+            self._irc = None
+        else:
+            self._irc = EidyiaConfig.IrcConfig()
+            nick = self._get('irc.nick', None)
+            if nick is None:
+                log.warning('irc.nick is not set, this is not recommended')
+                nick = self._default_username()
+            elif not isinstance(nick, (str, list, tuple)):
+                raise EidyiaConfig.ConfigError('irc.nick must be a string or list of strings')
+            elif isinstance(nick, (list, tuple)) and [n for n in nick if not isinstance(n, str)]:
+                raise EidyiaConfig.ConfigError('irc.nick must contain strings only if it is a list')
+            self.irc.nick = nick
+            self.irc.username = self._get('irc.username', IRC_USERNAME)
+            self.irc.realname = self._get('irc.realname', IRC_REALNAME)
+
+            self.irc.server_addr = self._get('irc.server_address')
+            self.irc.server_port = self._get('irc.server_port', self.irc.server_port)
+            if not self.irc.server_addr or not self.irc.server_port:
+                raise EidyiaConfig.ConfigError('Invalid irc.server_address or irc.server_port')
+            server_tls = self._get('irc.server_tls', None)
+            if server_tls is None:  # Educated guess from port number
+                server_tls = True if self.irc.server_port == 6697 else self.irc.server_tls
+            self.irc.server_tls = server_tls
+            self.irc.server_password = self._get('irc.server_password')
+
+            self.irc.use_sasl = self._get('irc.use_sasl', self.irc.use_sasl)
+            self.irc.sasl_username = self._get('irc.sasl_username', self.irc.sasl_username)
+            self.irc.sasl_password = self._get('irc.sasl_password', self.irc.sasl_password)
+
+            channels = self._get('irc.channels', self.irc.channels)
+            if isinstance(channels, str):
+                channels = [channels]
+            elif not isinstance(channels, (list, tuple)) or [c for c in channels if not isinstance(c, str)]:
+                raise EidyiaConfig.ConfigError('irc.channels must be a string or list of strings')
+            self.irc.channels = channels
+
+            admins = self._get('irc.admins', self.irc.admins)
+            if isinstance(admins, str):
+                admins = [admins]
+            elif not isinstance(admins, (list, tuple)) or [n for n in admins if not isinstance(n, str)]:
+                raise EidyiaConfig.ConfigError('irc.admins must be a string or list of strings')
+            self.irc.admins = admins
+
     def _get(self, key: str, default_value: Any = None) -> Any:
         '''
         Constructor helper.
@@ -185,6 +264,19 @@ class EidyiaConfig:
             value = value.get(sub, placeholder)
             value_key = sub
         return value if value is not placeholder else default_value
+
+    def _default_username(self) -> str:
+        '''
+        Obtains a default user/nickname for use on platforms such as IRC.
+
+        The result is obtained from the executing environment (the name of the
+        user running the process). If that information is somehow unavailable,
+        a default placeholder is returned instead.
+        '''
+        try:
+            return getpass.getuser()
+        except Exception:  # Whoops?!
+            return 'Eidyia01'
 
     @property
     def config_path(self):
@@ -220,3 +312,10 @@ class EidyiaConfig:
         Accesses Discord configuration properties if Discord was configured.
         '''
         return self._discord
+
+    @property
+    def irc(self) -> Optional['EidyiaConfig.IrcConfig']:
+        '''
+        Accesses IRC configuration properties if IRC was configured.
+        '''
+        return self._irc

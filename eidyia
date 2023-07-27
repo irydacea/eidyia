@@ -46,9 +46,9 @@ def main():
     Application entry point.
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d, --debug', action='store_true', dest='debug',
-                        default=False,
-                        help='prints extra debugging information')
+    parser.add_argument('-d', '--debug', action='count', dest='debug',
+                        default=0,
+                        help='prints extra debugging information. Can be specified up to three times for additional debugging information')
     parser.add_argument('-c', '--config', action='store', type=str, dest='config',
                         default=CONFIG_PATH,
                         help='specifies the path to the Eidyia configuration JSON file')
@@ -75,6 +75,11 @@ def main():
                   logging.DEBUG]:
         # Sorry, I just hate logging YELLING IN MY FACE ALL THE TIME
         logging.addLevelName(level, logging.getLevelName(level).lower())
+    if 0 < args.debug < 3:
+        logging.getLogger('discord.client').setLevel(logging.INFO)
+        logging.getLogger('discord.http').setLevel(logging.INFO)
+        logging.getLogger('discord.gateway').setLevel(logging.INFO)
+        logging.getLogger('IrcClient.raw').setLevel(logging.INFO)
 
     #
     # Read config file
@@ -97,6 +102,7 @@ def main():
     #
     try:
         eidyia = EidyiaCore(args.report)
+        eidyia.debug = args.debug > 1
     except (V1Report.FileError, V1Report.FormatError) as err:
         exit_error(f'Could not read report from {args.report}: {err}')
 

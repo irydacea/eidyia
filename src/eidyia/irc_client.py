@@ -177,11 +177,14 @@ class EidyiaIrcController(IrcServer):
         elif cmd == 'version':
             log.debug(f'{user_label} requested version number')
             await self.do_send_response(
-                target, f'codename "Eidyia" version {eidyia_core().version}')
+                channel, f'codename "Eidyia" version {eidyia_core().version}')
         elif cmd == 'ping':
             log.debug(f'{user_label} pinged us')
             await self.do_send_response(
-                target, 'Pong!')
+                channel, 'Pong!')
+        else:
+            await self.do_send_response(
+                channel, f'Unrecognised command: {cmd}')
 
 
 class EidyiaIrcClient(IrcBot, EidyiaSubscriber):

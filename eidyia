@@ -7,13 +7,13 @@ See COPYING for use and distribution terms.
 '''
 
 import argparse
-import asyncio
 import logging
 import sys
 
 from src.eidyia.config import EidyiaConfig
 from src.eidyia.core import EidyiaCore, EidyiaNoTasksError
 from src.eidyia.discord_client import EidyiaDiscordClient
+from src.eidyia.irc_client import EidyiaIrcClient
 from src.valen.V1Report import Report as V1Report
 
 
@@ -25,6 +25,9 @@ REPORT_PATH = '../valen/valen.json'
 
 # Report format name
 REPORT_FORMAT = 'Valen V1'
+
+# Default client list
+_CLIENTS = ['discord', 'irc']
 
 log = logging.getLogger('main')
 
@@ -49,13 +52,20 @@ def main():
     parser.add_argument('-d', '--debug', action='count', dest='debug',
                         default=0,
                         help='prints extra debugging information. Can be specified up to three times for additional debugging information')
-    parser.add_argument('-c', '--config', action='store', type=str, dest='config',
+    parser.add_argument('-c', '--config', action='store', dest='config',
                         default=CONFIG_PATH,
                         help='specifies the path to the Eidyia configuration JSON file')
-    parser.add_argument('-r', '--report', action='store', type=str, dest='report',
+    parser.add_argument('-r', '--report', action='store', dest='report',
                         default=REPORT_PATH,
                         help='specifies the path to the Valen report JSON file')
+    parser.add_argument('-C', '--client', action='store', dest='clients',
+                        default=','.join(_CLIENTS),
+                        help=f'comma-delimited list specifying the clients to enable for this session (must be at least one of {", ".join(_CLIENTS)})')
     args = parser.parse_args()
+    clients = args.clients.split(',')
+    for cl in clients:
+        if cl not in _CLIENTS:
+            exit_error(f'Unrecognised client "{cl}". Cannot continue.')
 
     print(f'''codename "Eidyia" version {EidyiaCore.version}
 
@@ -106,7 +116,15 @@ def main():
     except (V1Report.FileError, V1Report.FormatError) as err:
         exit_error(f'Could not read report from {args.report}: {err}')
 
-    if config.discord:
+    if config.irc and 'irc' in clients:
+        async def irc_client_coro():
+            async with EidyiaIrcClient(config) as irc_client:
+                irc_client.subscribe()
+                await irc_client.setup_connections()
+                await irc_client.run()
+        eidyia.add_task('IrcClient', irc_client_coro())
+
+    if config.discord and 'discord' in clients:
         async def discord_client_coro():
             async with EidyiaDiscordClient(config) as discord_client:
                 discord_client.subscribe()

@@ -167,19 +167,19 @@ class EidyiaIrcController(IrcServer):
             cmd = cmd[1:]
             req_type = f'channel message in {target}'
         if cmd == 'report':
-            log.info(f'{user_label} requested full report via {req_type}')
+            log.debug(f'{user_label} requested full report via {req_type}')
             await self.bot.broadcast_report(
                 single_channel=channel)
         elif cmd == 'diff':
-            log.info(f'{user_label} requested differential report via {req_type}')
+            log.debug(f'{user_label} requested differential report via {req_type}')
             await self.bot.broadcast_report(
                 single_channel=channel, force_diff=True)
         elif cmd == 'version':
-            log.info(f'{user_label} requested version number')
+            log.debug(f'{user_label} requested version number')
             await self.do_send_response(
                 target, f'codename "Eidyia" version {eidyia_core().version}')
         elif cmd == 'ping':
-            log.info(f'{user_label} pinged us')
+            log.debug(f'{user_label} pinged us')
             await self.do_send_response(
                 target, 'Pong!')
 

@@ -44,6 +44,12 @@ IRC_USERNAME = 'eidyia'
 # Default IRC real name/gecos
 IRC_REALNAME = 'Eidyia IRC Client - https://status.wesnoth.org/'
 
+# Text used in IRC when a DNS issue has been found
+IRC_DNS_NOTICE = '\x02\x0307WARNING:\x0f DNS issues reported for some facilities. This warrants \x02immediate\x02 attention.'
+
+# IRC bot command prefix
+IRC_BOT_COMMAND_PREFIX = '%'
+
 #
 # Internal
 #
@@ -131,6 +137,10 @@ class EidyiaConfig:
 
         channels: list[str] = field(default_factory=list)
         admins: list[str] = field(default_factory=list)
+
+        command_prefix: str = IRC_BOT_COMMAND_PREFIX
+        dns_notice: str = IRC_DNS_NOTICE
+        report_mode: EidyiaReportMode = EidyiaReportMode.REPORT_MINIMAL_DIFF
 
     class _PlaceholderValue:
         '''
@@ -246,6 +256,12 @@ class EidyiaConfig:
             elif not isinstance(admins, (list, tuple)) or [n for n in admins if not isinstance(n, str)]:
                 raise EidyiaConfig.ConfigError('irc.admins must be a string or list of strings')
             self.irc.admins = admins
+
+            self.irc.command_prefix = self._get('irc.command_prefix', self.irc.command_prefix)
+            if not isinstance(self.irc.command_prefix, str) or not self.irc.command_prefix:
+                raise EidyiaConfig.ConfigError('irc.command_prefix must be a non-empty string if specified')
+            self.irc.dns_notice = self._get('irc.dns_notice', self.irc.dns_notice)
+            self.irc.report_mode = EidyiaReportMode.from_json(self._get('irc.changes_only', True))
 
     def _get(self, key: str, default_value: Any = None) -> Any:
         '''

@@ -117,10 +117,36 @@
 		"channels": "##sample-channel",
 
 		// [optional]
-		// List of IRC nick!user@host masks that will be allowed access to
-		// bot administration commands.
+		// List of IRC account names that will be allowed access to bot
+		// administration commands.
 		"admins": [
-			"*!*@wesnoth/developer/iris"
-		]
+			"example account name"
+		],
+
+		// [optional]
+		// String used as a prefix for IRC bot commands. You can change this
+		// from its default to resolve conflicts with other bots in the same
+		// channels.
+		"command_prefix": "%",
+
+		// [optional]
+		// Specifies how to handle changes or lack thereof between updates:
+		//
+		//  * false: Every update triggers a report post.
+		//
+		//  * true: Updates trigger a report that only shows changes from the
+		//    previous update. If there are no changes, the overall status is
+		//    still posted in a report, along with any currently impacted
+		//    facilities (if there are any)
+		//
+		//  * "strict": Updates trigger a report only if there are any changes
+		//    from the previous update. If there are no changes, no post is
+		//    made.
+		"changes_only": true,
+
+		// [optional]
+		// Notice added to the IRC output in the event that a DNS issue is
+		// found in the report. This accepts IRC formatting codes.
+		"dns_notice": "\u0002\u000307WARNING:\u000f DNS issues reported for some facilities. This warrants \u0002immediate\u0002 attention."
 	}
 }

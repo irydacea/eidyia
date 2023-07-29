@@ -17,11 +17,11 @@ from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
 from src.eidyia.subscriber_api import EidyiaSubscriber
-import src.eidyia.ui_utils as eidyia_ui_utils
+import src.eidyia.ui_utils as ui
 
 
 # Discord status text used during the initial sync
-INITIAL_DISCORD_STATUS = '(connecting...)'
+_INITIAL_DISCORD_STATUS = '(connecting...)'
 
 #
 # Internal parameters - do NOT change
@@ -31,8 +31,8 @@ _MONITOR_LOOP_INTERVAL_SECS = 1
 
 # Do NOT change this unless Discord changes their limits or formatting
 
-MAX_DISCORD_EMBED_FIELDS = 25
-DISCORD_EMBED_COLS = 3
+_MAX_DISCORD_EMBED_FIELDS = 25
+_DISCORD_EMBED_COLS = 3
 
 EidyiaChannelList = List[Tuple[int, int]]
 
@@ -80,7 +80,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         # here later.
         # NOTE: Discord doesn't allow bots to use 'custom' activities, sadly.
         initial_act = discord.Activity(type=self.config.discord.activity,
-                                       name=INITIAL_DISCORD_STATUS)
+                                       name=_INITIAL_DISCORD_STATUS)
         super().__init__(*args,
                          **kwargs,
                          intents=discord.Intents(guilds=True),
@@ -131,7 +131,8 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             verbose_post_next = False
             try:
                 if self.eidyia_update.get():
-                    await self._eidyia_subscription_task_crit()
+                    log.info('Broadcasting new status report')
+                    await self.broadcast_report()
             except discord.ConnectionClosed as err:
                 # At some point we'll reconnect. Because we may have missed a
                 # whole report update, next update should be a full report.
@@ -154,20 +155,18 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
                 await asyncio.sleep(_MONITOR_LOOP_INTERVAL_SECS)
 
     @eidyia_critical_section
-    async def _eidyia_subscription_task_crit(self):
+    async def broadcast_report(self):
         # Got an error enqueued?
         if eidyia_core().report_error is not None:
-            await self.do_broadcast_report_error()
+            await self._do_broadcast_report_error()
             return
         # Handle a normal report
-        log.info('Broadcasting new status report')
-        await self.do_broadcast_report_update()
+        await self._do_broadcast_report_update()
 
     async def setup_hook(self):
         '''
         Performs setup of the Eidyia subscription task.
         '''
-        log.debug('setup hook')
         self._task = self.loop.create_task(self._eidyia_subscription_task())
 
     async def on_connect(self):
@@ -183,9 +182,9 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         '''
         log.info(f'Joined Discord as {self.user}, broadcasting initial status report')
         self._force_full_report_once = True  # First report is always in full
-        await self.do_broadcast_report_update()
+        await self._do_broadcast_report_update()
 
-    async def do_broadcast_report_update(self):
+    async def _do_broadcast_report_update(self):
         '''
         Sends a report update out to channels.
         '''
@@ -210,9 +209,9 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
 
         log.debug('Updating presence and preparing report')
         await self.update_presence()
-        discord_report = self.format_report(show_greens=detailed,
-                                            use_diff=use_diff,
-                                            strict_changes_only=strict_changes_only)
+        discord_report = self._format_report(show_greens=detailed,
+                                             use_diff=use_diff,
+                                             strict_changes_only=strict_changes_only)
         if discord_report is None:
             if strict_changes_only:
                 log.info('No changes since last report, skipping')
@@ -223,13 +222,13 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             for guild_id, channel_id in self.report_channels:
                 guild = self.get_guild(guild_id)
                 channel = self.get_channel(channel_id)
-                log.info(f'Sending report to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
+                log.info(f'Sending report to {ui.log_guild_channel(guild, channel)}')
                 await channel.send(embed=discord_report)
         # Once everything is done without errors for the fifrst time, we are
         # ready to proceed with differential reports.
         self._force_full_report_once = False
 
-    async def do_broadcast_report_error(self):
+    async def _do_broadcast_report_error(self):
         '''
         Sends an error notification to channels, if allowed by configuration.
 
@@ -242,7 +241,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             return
 
         text = eidyia_core().report_error
-        colour = eidyia_ui_utils.status_to_discord_colour(V1Report.FacilityStatus.STATUS_UNKNOWN)
+        colour = ui.status_to_discord_colour(V1Report.FacilityStatus.STATUS_UNKNOWN)
         embed = discord.Embed(colour=colour,
                               description=text,
                               timestamp=datetime.datetime.now())
@@ -252,15 +251,15 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         for guild_id, channel_id in self.report_channels:
             guild = self.get_guild(guild_id)
             channel = self.get_channel(channel_id)
-            log.info(f'Sending error notification to {eidyia_ui_utils.log_guild_channel(guild, channel)}')
+            log.info(f'Sending error notification to {ui.log_guild_channel(guild, channel)}')
             await channel.send(embed=embed)
 
-    def format_report(self,
-                      show_greens: bool = False,
-                      use_diff: bool = True,
-                      strict_changes_only: bool = False,
-                      include_hidden: bool = False,
-                      use_fields: bool = True) -> Optional[discord.Embed]:
+    def _format_report(self,
+                       show_greens: bool = False,
+                       use_diff: bool = True,
+                       strict_changes_only: bool = False,
+                       include_hidden: bool = False,
+                       use_fields: bool = True) -> Optional[discord.Embed]:
         '''
         Generates a Discord embed from the current status report.
 
@@ -290,10 +289,10 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
             diff = V1StatusDiff(core.report, None)
 
         overall_status = core.report.status_summary()
-        summary_label = eidyia_ui_utils.status_to_caption(overall_status)
-        summary_emoji = eidyia_ui_utils.status_to_discord_emoji(overall_status)
+        summary_label = ui.status_to_caption(overall_status)
+        summary_emoji = ui.status_to_discord_emoji(overall_status)
         summary_padding = '\u00a0' * 28  # Kinda arbitrary and desktop-centric
-        embed_colour = eidyia_ui_utils.status_to_discord_colour(overall_status)
+        embed_colour = ui.status_to_discord_colour(overall_status)
         post_ts = datetime.datetime.fromtimestamp(core.report.last_refresh())
 
         lines = [f'**Overall Status**{summary_padding}{summary_emoji} {summary_label}']
@@ -346,8 +345,8 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
                     })
             for entry in facility_parts:
                 name = entry['name']
-                status_text = eidyia_ui_utils.status_to_caption(entry['status'])
-                emoji = eidyia_ui_utils.status_to_discord_emoji(entry['status'])
+                status_text = ui.status_to_caption(entry['status'])
+                emoji = ui.status_to_discord_emoji(entry['status'])
                 if use_fields:
                     fields.append({
                         'name': name,
@@ -360,18 +359,18 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         # Finishing up the report embed
         #
 
-        if len(fields) > MAX_DISCORD_EMBED_FIELDS:
+        if len(fields) > _MAX_DISCORD_EMBED_FIELDS:
             # In case we run out of fields somehow (must be a catastrophic
             # situation if we do, huh)
-            lines.append(f'({MAX_DISCORD_EMBED_FIELDS - len(fields)} additional facilities not shown)')
-            fields = fields[:MAX_DISCORD_EMBED_FIELDS]
-        elif len(fields) > DISCORD_EMBED_COLS \
-                and len(fields) % DISCORD_EMBED_COLS != 0:
+            lines.append(f'({_MAX_DISCORD_EMBED_FIELDS - len(fields)} additional facilities not shown)')
+            fields = fields[:_MAX_DISCORD_EMBED_FIELDS]
+        elif len(fields) > _DISCORD_EMBED_COLS \
+                and len(fields) % _DISCORD_EMBED_COLS != 0:
             # Discord will center-align rows of fields that have less than the
             # maximum number of columns, which means we end up with a wonky
             # last row... unless we add empty fields for padding
             # FIXME: This is a bad idea because mobile uses a single column...
-            padding_count = DISCORD_EMBED_COLS - len(fields) % DISCORD_EMBED_COLS
+            padding_count = _DISCORD_EMBED_COLS - len(fields) % _DISCORD_EMBED_COLS
             fields += [{'name': '', 'value': ''}] * padding_count
 
         if hidden_compromised > 0:
@@ -398,7 +397,7 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         status = eidyia_core().report.status_summary()
         act = discord.Activity(type=self.config.discord.activity,
                                name=self.config.discord.status)
-        discord_status = eidyia_ui_utils.status_to_discord_presence(status)
+        discord_status = ui.status_to_discord_presence(status)
 
         await self.change_presence(activity=act, status=discord_status)
         log.info('Updated Discord presence according to report')

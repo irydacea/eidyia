@@ -210,7 +210,6 @@ class EidyiaConfig:
                 if not isinstance(channels, (tuple, list)) or not channels:
                     raise EidyiaConfig.ConfigError(f'Guild configuration for {gid} must be a non-empty list of channels')
                 self.discord.guilds[int(gid)] = [int(cid) for cid in channels]
-                log.info(f'* Configured guild {gid}')
 
         # IRC client configuration items
 

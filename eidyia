@@ -21,7 +21,7 @@ from src.valen.V1Report import Report as V1Report
 CONFIG_PATH = './eidyia.jsonc'
 
 # Default path to valen report
-REPORT_PATH = '../valen/valen.json'
+REPORT_PATH = './valen.json'
 
 # Report format name
 REPORT_FORMAT = 'Valen V1'

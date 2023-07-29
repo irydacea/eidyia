@@ -113,6 +113,15 @@ class EidyiaIrcController(IrcServer):
         Handles completion of IRC registration (001 numeric).
         '''
         log.info(f'Connected to {self.name}')
+        for cmd in self.bot.config.irc.login_commands:
+            if not len(cmd):
+                continue
+            log.debug(f'Sending login_commands item: {" ".join(cmd)}')
+            await self.send(ircbuild(cmd[0], cmd[1:]))
+        if isinstance(self.bot.config.irc.autojoin_delay_secs, (float, int)) \
+           and self.bot.config.irc.autojoin_delay_secs > 0:
+            log.debug(f'autojoin_delay set to {self.bot.config.irc.autojoin_delay_secs}, sleeping')
+            await asyncio.sleep(self.bot.config.irc.autojoin_delay_secs)
         # Rejoin channels
         for channel in self.bot.report_channels:
             await self.send(ircbuild('JOIN', [channel]))

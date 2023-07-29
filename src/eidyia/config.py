@@ -135,6 +135,8 @@ class EidyiaConfig:
         sasl_username: Optional[str] = None
         sasl_password: Optional[str] = None
 
+        login_commands: list[list[str]] = field(default_factory=list)
+        autojoin_delay_secs: float = 0.0
         channels: list[str] = field(default_factory=list)
         admins: list[str] = field(default_factory=list)
 
@@ -242,6 +244,15 @@ class EidyiaConfig:
             self.irc.use_sasl = self._get('irc.use_sasl', self.irc.use_sasl)
             self.irc.sasl_username = self._get('irc.sasl_username', self.irc.sasl_username)
             self.irc.sasl_password = self._get('irc.sasl_password', self.irc.sasl_password)
+
+            self.irc.autojoin_delay_secs = self._get('irc.autojoin_delay', self.irc.autojoin_delay_secs)
+            self.irc.login_commands = self._get('irc.login_commands', self.irc.login_commands)
+            if not isinstance(self.irc.login_commands, list) or (
+               self.irc.login_commands and not all(isinstance(cmd, list) for cmd in self.irc.login_commands)):
+                raise EidyiaConfig.ConfigError('irc.login_commands must be a list of lists of strings')
+            for cmd in self.irc.login_commands:
+                if not all(isinstance(param, str) for param in cmd):
+                    raise EidyiaConfig.ConfigError('irc.login_commands must be a list of lists of strings')
 
             channels = self._get('irc.channels', self.irc.channels)
             if isinstance(channels, str):

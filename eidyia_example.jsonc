@@ -110,6 +110,27 @@
 		"sasl_password": "NickServ account password here",
 
 		// [optional]
+		// Configures Eidyia to send commands upon successful login to the IRC
+		// server. This could be used, for example, to have the bot recover
+		// its own nickname after a disconnect. Do note that the command(s)
+		// should be specified as lists of strings, not raw IRC strings, even
+		// though they must be otherwise raw IRC commands (so PRIVMSG instead
+		// of MSG).
+		"login_commands": [
+			// Libera Chat has server-side NICKSERV and CHANSERV command
+			// aliases to send a PRIVMSG to NickServ or ChanServ.
+			["NICKSERV", "REGAIN", "Eidyia"],
+			["CHANSERV", "INVITE", "#super-cool-secret-channel"]
+		],
+
+		// [optional]
+		// Introduces an artificial delay **after** login and executing the
+		// commands above, and **before** autojoining the channels configured
+		// below. This is measured in seconds and may be a float. By default
+		// this is 0.
+		"autojoin_delay": 3,
+
+		// [optional]
 		// List of channels to join the bot to on connect. If not specified,
 		// the bot will not join any channels, which is probably useless.
 		// However, it will still be possible to send it a private message to

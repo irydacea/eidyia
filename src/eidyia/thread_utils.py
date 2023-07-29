@@ -24,23 +24,19 @@ class ConcurrentFlag:
         '''
         Sets the flag.
         '''
-        self._lock.acquire()
-        self._flag = True
-        self._lock.release()
+        with self._lock:
+            self._flag = True
 
     def clear(self):
         '''
         Clears the flag.
         '''
-        self._lock.acquire()
-        self._flag = False
-        self._lock.release()
+        with self._lock:
+            self._flag = False
 
     def get(self):
         '''
         Retrieves the current flag value.
         '''
-        self._lock.acquire()
-        res = self._flag
-        self._lock.release()
-        return res
+        with self._lock:
+            return self._flag

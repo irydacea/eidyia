@@ -226,7 +226,7 @@ class EidyiaConfig:
                 nick = self._default_username()
             elif not isinstance(nick, (str, list, tuple)):
                 raise EidyiaConfig.ConfigError('irc.nick must be a string or list of strings')
-            elif isinstance(nick, (list, tuple)) and [n for n in nick if not isinstance(n, str)]:
+            elif isinstance(nick, (list, tuple)) and not all(isinstance(n, str) for n in nick):
                 raise EidyiaConfig.ConfigError('irc.nick must contain strings only if it is a list')
             self.irc.nick = nick
             self.irc.username = self._get('irc.username', IRC_USERNAME)
@@ -258,14 +258,14 @@ class EidyiaConfig:
             channels = self._get('irc.channels', self.irc.channels)
             if isinstance(channels, str):
                 channels = [channels]
-            elif not isinstance(channels, (list, tuple)) or [c for c in channels if not isinstance(c, str)]:
+            elif not isinstance(channels, (list, tuple)) or not all(isinstance(c, str) for c in channels):
                 raise EidyiaConfig.ConfigError('irc.channels must be a string or list of strings')
             self.irc.channels = channels
 
             admins = self._get('irc.admins', self.irc.admins)
             if isinstance(admins, str):
                 admins = [admins]
-            elif not isinstance(admins, (list, tuple)) or [n for n in admins if not isinstance(n, str)]:
+            elif not isinstance(admins, (list, tuple)) or not all(isinstance(n, str) for n in admins):
                 raise EidyiaConfig.ConfigError('irc.admins must be a string or list of strings')
             self.irc.admins = admins
 

@@ -22,7 +22,7 @@ _subscribers: List['EidyiaSubscriber'] = []
 
 class EidyiaSubscriber:
     '''
-    Eidyia update events subscriber abstract class.
+    Eidyia update events subscriber base class.
     '''
     def __init__(self):
         '''

@@ -11,7 +11,7 @@
 	// Icon associated with the Site Status page in report posts
 	"status_site_icon": "https://status.wesnoth.org/wesmere/logo-minimal-64@2x.png",
 
-	// [mandatory]
+	// [mandatory if "irc" group not set]
 	// The "discord" configuration group includes settings affecting
 	// the Discord reporting module.
 	"discord": {
@@ -62,5 +62,93 @@
 		// Discord message text added to the embed as a banner in the event
 		// that a DNS issue is found in the report.
 		"dns_notice": ":warning: **WARNING:** One or more facilities or instances report DNS issues. While in the best case this could simply be the result of an Eidyia host misconfiguration, it could also be a consequence of a Wesnoth.org DNS provider issue, which warrants **immediate** attention."
+	},
+
+	// [mandatory if "discord" group not set]
+	// The "irc" configuration group includes settings affecting the IRC
+	// reporting module.
+	"irc": {
+		// [optional but highly recommended]
+		// Nick or a list of candidate nicks to use when connecting to IRC.
+		"nick": "Eidyia",
+
+		// [optional]
+		// Username (user portion of user@host mask) to use when connecting to IRC.
+		"username": "eidyia",
+
+		// [optional]
+		// Real name to use when connecting to IRC, shown in /WHOIS.
+		"realname": "Eidyia IRC Client - https://status.wesnoth.org/",
+
+		// [mandatory]
+		// IRC server hostname to connect to.
+		"server_address": "irc.libera.chat",
+
+		// [optional]
+		// IRC server port to connect to. Defaults to 6667 if unspecified.
+		"server_port": 6667,
+
+		// [optional]
+		// Whether to use TLS for IRC server connection. Defaults to True if
+		// the server_port is 6697, False otherwise.
+		"server_tls": false,
+
+		// [optional]
+		// Sends a password to the server during connection.
+		"server_password": "IRC server password here",
+
+		// [optional]
+		// Specifies the usage of SASL authentication during connection.
+		"use_sasl": false,
+
+		// [mandatory if use_sasl is true]
+		// Specifies a username to send during SASL authentication.
+		"sasl_username": "NickServ account name here",
+
+		// [mandatory if use_sasl is true]
+		// Specifies a password to send during SASL authentication.
+		"sasl_password": "NickServ account password here",
+
+		// [optional]
+		// List of channels to join the bot to on connect. If not specified,
+		// the bot will not join any channels, which is probably useless.
+		// However, it will still be possible to send it a private message to
+		// trigger a private report.
+		"channels": "##sample-channel",
+
+		// [optional]
+		// List of IRC account names that will be allowed access to bot
+		// administration commands.
+		// NOTE: The server *must* support IRCv3 account-tag in order for
+		// Eidyia to be able to use this feature.
+		"admins": [
+			"example account name"
+		],
+
+		// [optional]
+		// String used as a prefix for IRC bot commands. You can change this
+		// from its default to resolve conflicts with other bots in the same
+		// channels.
+		"command_prefix": "%",
+
+		// [optional]
+		// Specifies how to handle changes or lack thereof between updates:
+		//
+		//  * false: Every update triggers a report post.
+		//
+		//  * true: Updates trigger a report that only shows changes from the
+		//    previous update. If there are no changes, the overall status is
+		//    still posted in a report, along with any currently impacted
+		//    facilities (if there are any)
+		//
+		//  * "strict": Updates trigger a report only if there are any changes
+		//    from the previous update. If there are no changes, no post is
+		//    made.
+		"changes_only": true,
+
+		// [optional]
+		// Notice added to the IRC output in the event that a DNS issue is
+		// found in the report. This accepts IRC formatting codes.
+		"dns_notice": "\u0002\u000307WARNING:\u000f DNS issues reported for some facilities. This warrants \u0002immediate\u0002 attention."
 	}
 }

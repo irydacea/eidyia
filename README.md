@@ -34,15 +34,12 @@ production names; sometimes they don't.
 I decided having the next component be `WSSSSSS` (or `WS6` for short) would be
 appropriate.
 
-### Why Discord
+### Why Discord / Why IRC
 
 IRC definitely has a lot of advantages over proprietary platforms, but its
 disadvantages are more visible to the average user. At the end of the day, I
 do not have the energy to proselytise for either camp, I just want to make a
 working status notification bot.
-
-(Additionally, I do want to implement an IRC module for `eidyia` at some point
-in the not-too-distant future.)
 
 ## Installation
 
@@ -52,29 +49,50 @@ There are a couple of required dependencies that need to be installed first
 for `eidyia` to run correctly:
 
 ```
-python3 -m pip install -U discord.py jsonc_parser watchdog
+python3 -m pip install -U discord.py ircrobots jsonc_parser watchdog
 ```
 
 ## Configuration
 
 See the included `eidyia_example.jsonc` file for configuration instructions
-and examples. The file should be renamed to ` eidyia.jsonc` and put in the
-same directory as the `eidyia` executable. An alternative option is to specify
-an explicit path to the configuration file by invoking the bot with the `-c`
+and examples. The file should be renamed to `eidyia.jsonc` and put in the same
+directory as the `eidyia` executable. An alternative option is to specify an
+explicit path to the configuration file by invoking the bot with the `-c`
 option.
 
-**Before running, you will need to set up the bot on a Discord account, obtain
-the client token and add it to the configuration file, and join the bot to the
-desired guilds.** Proceed to the next section for more information on this
-process.
+**Before running**, you should make sure that at least one of the two client
+modules are properly configured — that is, either Discord, or IRC.
 
-`eidyia` supports a few additional command line arguments:
+* If using Discord, you must set up the bot on a Discord account, obtain a
+  client token, and add it to the configuration file, and join the bot to the
+  desired guilds. More information on this can be found in the next section.
+
+* If using IRC, you should gather any applicable network login information
+  that the bot needs. Beware that currently, the bot's only mechanism for
+  authenticating admins on IRC relies on the connected network supporting
+  [IRCv3 account-tag](https://ircv3.net/specs/extensions/account-tag), as well
+  as bot admins having valid services accounts on that network. Additionally,
+  it is worth noting the bot supports SASL authentication for itself and it
+  may even be required by the network for safety reasons.
+
+`eidyia` supports a few command line arguments:
 
 * `-d / --debug`
-  Increases log verbosity to the absolute maximum for hacking and debugging.
-* `-r / --report`
+  Increases log verbosity for hacking and debugging. It can be specified up to
+  three times for additional debugging information (level 1: general, level 2:
+  asyncio, level 3: Discord and IRC trace information).
+
+* `-c CONFIG_FILE / --config CONFIG_FILE`
+  Specifies the path to the Eidyia JSON config file.
+
+* `-C CLIENTS / --client CLIENTS` 
+  Specifies a comma-separated list of client modules that should be enabled if
+  they are correctly configured in the JSON config file. By default this is
+  `discord,irc`.
+
+* `-r REPORT_FILE / --report REPORT_FILE`
   Specifies the path to the Valen report file. The default path used if this
-  is not provided in the commandline is `../valen/valen.json`.
+  is not provided in the command line is `./valen.json`.
 
 ### Generating a bot token
 

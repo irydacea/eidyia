@@ -119,6 +119,8 @@
 		// [optional]
 		// List of IRC account names that will be allowed access to bot
 		// administration commands.
+		// NOTE: The server *must* support IRCv3 account-tag in order for
+		// Eidyia to be able to use this feature.
 		"admins": [
 			"example account name"
 		],

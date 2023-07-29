@@ -1,7 +1,7 @@
 # Eidyia - Wesnoth Site Status Service Stateful Support Survey Bot
 
-`eidyia` is a Discord.py bot that performs Wesnoth.org site status monitoring
-and reporting.
+`eidyia` is a Discord and IRC bot that performs Wesnoth.org site status
+monitoring and reporting.
 
 Most of the hard work is done by [`valen`](https://github.com/wesnoth/valen),
 which has its own Web front-end publicly available at <https://status.wesnoth.org/>.

@@ -152,6 +152,12 @@
 		// channels.
 		"command_prefix": "%",
 
+		// [optiona]
+		// Specifies whether to use PRIVMSG or NOTICE when posting report
+		// updates or responding to commands in channels. Note that private
+		// responses to admins will always use NOTICE.
+		"privmsg_channels": true,
+
 		// [optional]
 		// Specifies how to handle changes or lack thereof between updates:
 		//

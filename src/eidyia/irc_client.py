@@ -106,7 +106,11 @@ class EidyiaIrcController(IrcServer):
         '''
         Sends a bot response message to a target.
         '''
-        await self.send(ircbuild('NOTICE', [target, message]))
+        if target.startswith('#') and self.bot.config.irc.privmsg_channels:
+            cmd = 'PRIVMSG'
+        else:
+            cmd = 'NOTICE'
+        await self.send(ircbuild(cmd, [target, message]))
 
     async def handle_registration_complete(self):
         '''

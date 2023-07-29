@@ -141,6 +141,7 @@ class EidyiaConfig:
         admins: list[str] = field(default_factory=list)
 
         command_prefix: str = IRC_BOT_COMMAND_PREFIX
+        privmsg_channels: bool = True
         dns_notice: str = IRC_DNS_NOTICE
         report_mode: EidyiaReportMode = EidyiaReportMode.REPORT_MINIMAL_DIFF
 
@@ -271,6 +272,7 @@ class EidyiaConfig:
             self.irc.command_prefix = self._get('irc.command_prefix', self.irc.command_prefix)
             if not isinstance(self.irc.command_prefix, str) or not self.irc.command_prefix:
                 raise EidyiaConfig.ConfigError('irc.command_prefix must be a non-empty string if specified')
+            self.irc.privmsg_channels = self._get('irc.privmsg_channels', self.irc.privmsg_channels)
             self.irc.dns_notice = self._get('irc.dns_notice', self.irc.dns_notice)
             self.irc.report_mode = EidyiaReportMode.from_json(self._get('irc.changes_only', True))
 

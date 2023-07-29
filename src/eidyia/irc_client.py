@@ -52,6 +52,14 @@ def u8bytecount(u8string: str) -> int:
     return len(u8string.encode('utf-8'))
 
 
+def is_ctcp(message: str) -> bool:
+    '''
+    Returns whether the specified IRC message is a CTCP message.
+    '''
+    return message.startswith(ui.IrcFormat.CTCP_MARKER) and \
+           message.endswith(ui.IrcFormat.CTCP_MARKER)
+
+
 class EidyiaIrcController(IrcServer):
     '''
     Implementation of the IRC aspect of the Eidyia IRC Client.
@@ -112,6 +120,16 @@ class EidyiaIrcController(IrcServer):
             cmd = 'NOTICE'
         await self.send(ircbuild(cmd, [target, message]))
 
+    async def do_send_ctcp_reply(self, ctcp: str, target: str, message: str):
+        '''
+        Sends a CTCP response message to a target.
+        '''
+        ctcp_message = ''.join((
+            ui.IrcFormat.CTCP_MARKER,
+            f'{ctcp} {message}',
+            ui.IrcFormat.CTCP_MARKER))
+        await self.send(ircbuild('NOTICE', [target, ctcp_message]))
+
     async def handle_registration_complete(self):
         '''
         Handles completion of IRC registration (001 numeric).
@@ -171,6 +189,10 @@ class EidyiaIrcController(IrcServer):
             # Private message
             if message.startswith(self.bot.config.irc.command_prefix):
                 cmd = cmd[1:]
+            # We allow private CTCP
+            if is_ctcp(message):
+                await self.handle_ctcp_request(source, message)
+                return
             channel = source.nickname
             req_type = 'private message from {channel}'
         else:
@@ -198,6 +220,33 @@ class EidyiaIrcController(IrcServer):
         else:
             await self.do_send_response(
                 channel, f'Unrecognised command: {cmd}')
+
+    async def handle_ctcp_request(self,
+                                  source: IrcHostmask,
+                                  message: str):
+        '''
+        Handles a CTCP request.
+
+        Used by handle_privmsg(). Assumes that all authentication checks have
+        already been made.
+        '''
+        params = message[1:-1].split(' ')
+        ctcp = params[0]
+        nickname = source.nickname
+        if ctcp == 'PING':
+            log.debug(f'Replying to CTCP PING from {nickname}')
+            await self.do_send_ctcp_reply(
+                ctcp, nickname, ' '.join(params[1:]))
+        elif ctcp == 'VERSION':
+            log.debug(f'Replying to CTCP VERSION from {nickname}')
+            await self.do_send_ctcp_reply(
+                ctcp, nickname, f'Eidyia IRC Client - core version {eidyia_core().version}')
+        elif ctcp == 'TIME':
+            log.debug(f'Replying to CTCP TIME from {nickname}')
+            await self.do_send_ctcp_reply(
+                ctcp, nickname, f'{datetime.datetime.now}')
+        else:
+            log.debug(f'Unsupported CTCP request {ctcp} from {nickname}')
 
 
 class EidyiaIrcClient(IrcBot, EidyiaSubscriber):

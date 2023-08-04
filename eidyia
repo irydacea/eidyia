@@ -69,6 +69,7 @@ def main():
 
     print(f'''codename "Eidyia" version {EidyiaCore.version}
 
+             Clients: {', '.join(clients)}
     Config file path: {args.config}
     Report file path: {args.report}
        Report format: {REPORT_FORMAT}

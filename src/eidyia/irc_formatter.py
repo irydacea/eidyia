@@ -115,7 +115,6 @@ class Table:
             for n, col in enumerate(self._table[rownum]):
                 cols.append(col.padded(self._column_width(n)))
             coltext = _PREFIX + ' '.join(cols)
-            print(coltext)
             if u8bytecount(coltext) <= _QUICKFORMAT_THRESHOLD:
                 return coltext
         return quick

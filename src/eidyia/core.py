@@ -9,11 +9,12 @@ See COPYING for use and distribution terms.
 import asyncio
 import functools
 import logging
-from typing import List, Optional
+from typing import Optional
 
-from src.eidyia.subscriber_api import EidyiaBeholder, EidyiaSubscriber, EidyiaSystemListener
-from src.eidyia.thread_utils import ConcurrentFlag
-from src.valen.V1Report import Report as ValenReport
+from .config import EidyiaConfig
+from .subscriber_api import EidyiaAsyncClient, EidyiaBeholder, EidyiaSubscriber, EidyiaSystemListener
+from .thread_utils import ConcurrentFlag
+from ..valen.V1Report import Report as ValenReport
 
 
 #
@@ -62,7 +63,9 @@ class EidyiaCore(EidyiaSystemListener):
     '''
     version = _EIDYIA_VERSION
 
-    def __init__(self, report_filename: str):
+    def __init__(self,
+                 config: EidyiaConfig,
+                 report_filename: str):
         '''
         Constructor
         '''
@@ -73,6 +76,7 @@ class EidyiaCore(EidyiaSystemListener):
         _instance = self
         super().__init__()
 
+        self._config = config
         self._debug: bool = False
         self._report: ValenReport = ValenReport(report_filename)
         self._old_report: Optional[ValenReport] = None
@@ -100,6 +104,13 @@ class EidyiaCore(EidyiaSystemListener):
         should be enabled.
         '''
         self._debug = value
+
+    @property
+    def config(self) -> EidyiaConfig:
+        '''
+        Retrieves the shared Eidyia configuration interface.
+        '''
+        return self._config
 
     @property
     def beholder(self) -> EidyiaBeholder:
@@ -148,6 +159,16 @@ class EidyiaCore(EidyiaSystemListener):
         '''
         log.debug(f'Registered child task {task_name} as {coro.__qualname__}()')
         self._async_items[coro] = task_name
+
+    def register(self,
+                 client_type: type[EidyiaAsyncClient]):
+        '''
+        Registers an async client class whose execution should be managed by
+        EidyiaCore by creating a single instance of it.
+
+        client_type is expected to be a subclass of EidyiaAsyncClient.
+        '''
+        self.add_task(client_type.__name__, client_type.Task(self.config))
 
     def _notify_from_external_thread(self):
         '''

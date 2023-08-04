@@ -9,15 +9,28 @@ See COPYING for use and distribution terms.
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
-from typing import final, List
+from typing import final, List, NoReturn
 import watchdog.events
 import watchdog.observers
 
+from .config import EidyiaConfig
 from .thread_utils import ConcurrentFlag
 
 log = logging.getLogger('eidyia.subscriber_api')
 
 _subscribers: List['EidyiaSubscriber'] = []
+
+
+class EidyiaAsyncClient(ABC):
+    '''
+    Abstract base class for async clients with a common factory coroutine.
+    '''
+    @staticmethod
+    @abstractmethod
+    async def Task(config: EidyiaConfig) -> NoReturn:
+        '''
+        Static factory method used as the initial coroutine for EidyiaCore.
+        '''
 
 
 class EidyiaSubscriber:

@@ -16,14 +16,14 @@ from ircrobots import ConnectionParams as IrcConnectionParams
 from ircrobots import SASLUserPass as IrcSASLUserPass
 from ircrobots import Server as IrcServer
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, NoReturn, Optional, Union
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
 from src.eidyia.irc_formatter import Table as EidyiaIrcTable
-from src.eidyia.subscriber_api import EidyiaSubscriber
+from src.eidyia.subscriber_api import EidyiaAsyncClient, EidyiaSubscriber
 import src.eidyia.ui_utils as ui
 
 
@@ -250,9 +250,12 @@ class EidyiaIrcController(IrcServer):
             log.debug(f'Unsupported CTCP request {ctcp} from {nickname}')
 
 
-class EidyiaIrcClient(IrcBot, EidyiaSubscriber):
+class EidyiaIrcClient(IrcBot, EidyiaSubscriber, EidyiaAsyncClient):
     '''
     Main Eidyia IRC client class.
+
+    Use the Task() factory coroutine to construct an instance of this class
+    that runs forever until interrupted by an external signal.
     '''
     class UnsupportedError(Exception):
         '''
@@ -261,11 +264,23 @@ class EidyiaIrcClient(IrcBot, EidyiaSubscriber):
         def __init__(self, message: str):
             self.message = message
 
+    @staticmethod
+    async def Task(config: EidyiaConfig) -> NoReturn:
+        '''
+        Static method used as the initial coroutine for EidyiaCore.
+        '''
+        async with EidyiaIrcClient(config) as irc_client:
+            irc_client.subscribe()
+            await irc_client.setup_connections()
+            await irc_client.run()
+
     def __init__(self, config: EidyiaConfig):
         '''
         Constructor.
+
+        Use the Task() factory instead.
         '''
-        log.debug('Initialising')
+        log.info('Initialising')
 
         self._task = None
         self._force_full_report_once = False

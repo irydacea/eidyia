@@ -109,25 +109,16 @@ def main():
     # Set up Eidyia and its client components
     #
     try:
-        eidyia = EidyiaCore(args.report)
+        eidyia = EidyiaCore(config, args.report)
         eidyia.debug = args.debug > 1
     except (V1Report.FileError, V1Report.FormatError) as err:
         exit_error(f'Could not read report from {args.report}: {err}')
 
     if config.irc and 'irc' in clients:
-        async def irc_client_coro():
-            async with EidyiaIrcClient(config) as irc_client:
-                irc_client.subscribe()
-                await irc_client.setup_connections()
-                await irc_client.run()
-        eidyia.add_task('IrcClient', irc_client_coro())
+        eidyia.register(EidyiaIrcClient)
 
     if config.discord and 'discord' in clients:
-        async def discord_client_coro():
-            async with EidyiaDiscordClient(config) as discord_client:
-                discord_client.subscribe()
-                await discord_client.start()
-        eidyia.add_task('DiscordClient', discord_client_coro())
+        eidyia.register(EidyiaDiscordClient)
 
     # Transfer control to the core, which will run forever
     try:

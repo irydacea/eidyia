@@ -10,13 +10,13 @@ import asyncio
 import datetime
 import discord
 import logging
-from typing import List, Optional, Tuple
+from typing import List, NoReturn, Optional, Tuple
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
-from src.eidyia.subscriber_api import EidyiaSubscriber
+from src.eidyia.subscriber_api import EidyiaAsyncClient, EidyiaSubscriber
 import src.eidyia.ui_utils as ui
 
 
@@ -39,9 +39,12 @@ EidyiaChannelList = List[Tuple[int, int]]
 log = logging.getLogger('DiscordClient')
 
 
-class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
+class EidyiaDiscordClient(discord.Client, EidyiaSubscriber, EidyiaAsyncClient):
     '''
     Main Eidyia Discord client class.
+
+    Use the Task() factory coroutine to construct an instance of this class
+    that runs forever until interrupted by an external signal.
     '''
     class UnsupportedError(Exception):
         '''
@@ -50,19 +53,22 @@ class EidyiaDiscordClient(discord.Client, EidyiaSubscriber):
         def __init__(self, message: str):
             self.message = message
 
+    @staticmethod
+    async def Task(config: EidyiaConfig) -> NoReturn:
+        '''
+        Static method used as the initial coroutine for EidyiaCore.
+        '''
+        async with EidyiaDiscordClient(config) as discord_client:
+            discord_client.subscribe()
+            await discord_client.start()
+
     def __init__(self, config: EidyiaConfig, *args, **kwargs):
         '''
         Constructor.
 
-        It sets the bot's intents and initial Discord status and activity.
-        Note that setting the filesystem event handler needs to be done
-        separately after construction (see the connect_observer() method).
-
-        Arguments:
-            config: An EidyiaConfig instance holding the current Eidyia
-                    application configuration.
+        Use the Task() factory instead.
         '''
-        log.debug('Initialising')
+        log.info('Initialising')
 
         self._task = None
         self._force_full_report_once = False

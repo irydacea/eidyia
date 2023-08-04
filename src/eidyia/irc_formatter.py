@@ -19,7 +19,7 @@ _SPLIT_THRESHOLD = 190
 _QUICKFORMAT_THRESHOLD = 350
 
 # Maximum columns for table displays
-_SPLIT_TABLE_COLUMNS = 3
+_SPLIT_TABLE_COLUMNS = 6
 
 # Formatting prefix
 _PREFIX = ' '
@@ -68,22 +68,27 @@ class Table:
             colnum = 0
         else:
             colnum = len(self._table[-1])
+
         bold = ui.IrcFormat.BOLD
         colour = ui.status_to_irc_colour(status)
         caption = ui.status_to_caption(status)
         icon = ui.status_to_irc_icon(status)
-        visual = f'{facility_name} {icon} {caption}'
-        raw = ' '.join((
-            bold.apply(facility_name),
-            colour.apply(icon),
-            colour.apply(caption)))
-        col = _Cell(visual, raw)
-        span = col.width()
-        if colnum >= len(self._colspans):
-            self._colspans.append(span)
+        # NOTE: internally the table has separate columns for item labels and
+        # status icons, meaning we have to push two columns at a time.
+        label_col = _Cell(facility_name, bold.apply(facility_name))
+        status_col = _Cell(
+            f'{icon} {caption}',
+            ' '.join((colour.apply(icon),
+                      colour.apply(caption)))
+            )
+        self._table[-1] += [label_col, status_col]
+        if colnum + 1 >= len(self._colspans):
+            self._colspans += [label_col.width(), status_col.width()]
         else:
-            self._colspans[colnum] = max(self._colspans[colnum], span)
-        self._table[-1].append(col)
+            self._colspans[colnum] = max(
+                self._colspans[colnum], label_col.width())
+            self._colspans[colnum + 1] = max(
+                self._colspans[colnum + 1], status_col.width())
 
     def format(self) -> List[str]:
         '''
@@ -104,7 +109,7 @@ class Table:
         return self._colspans[colnum]
 
     def _quickformat_row(self, rownum: int = -1) -> str:
-        return _PREFIX + ' '.join(cell.raw for cell in self._table[rownum])
+        return _PREFIX + '  '.join(cell.raw for cell in self._table[rownum])
 
     def _format_row(self, rownum: int = -1) -> str:
         quick = self._quickformat_row(rownum)
@@ -114,7 +119,7 @@ class Table:
             cols = []
             for n, col in enumerate(self._table[rownum]):
                 cols.append(col.padded(self._column_width(n)))
-            coltext = _PREFIX + ' '.join(cols)
+            coltext = _PREFIX + '  '.join(cols)
             if u8bytecount(coltext) <= _QUICKFORMAT_THRESHOLD:
                 return coltext
         return quick

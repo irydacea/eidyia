@@ -23,9 +23,6 @@ CONFIG_PATH = './eidyia.jsonc'
 # Default path to valen report
 REPORT_PATH = './valen.json'
 
-# Report format name
-REPORT_FORMAT = 'Valen V1'
-
 # Default client list
 _CLIENTS = ['discord', 'irc']
 
@@ -61,18 +58,22 @@ def main():
     parser.add_argument('-r', '--report', action='store', dest='report',
                         default=REPORT_PATH,
                         help='specifies the path to the Valen report JSON file')
+    parser.add_argument('-V', '--version', action='store_true', dest='version',
+                        default=False,
+                        help='shows version information and exits')
     args = parser.parse_args()
     clients = args.clients.split(',')
     for cl in clients:
         if cl not in _CLIENTS:
             exit_error(f'Unrecognised client "{cl}". Cannot continue.')
 
-    print(f'''codename "Eidyia" version {EidyiaCore.version}
-
+    print(f'codename "Eidyia" version {EidyiaCore.version}')
+    if args.version:
+        return
+    print(f'''
              Clients: {', '.join(clients)}
     Config file path: {args.config}
     Report file path: {args.report}
-       Report format: {REPORT_FORMAT}
 ''')
 
     min_log_level = logging.INFO if not args.debug else logging.DEBUG

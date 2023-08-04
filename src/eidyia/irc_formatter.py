@@ -62,7 +62,7 @@ class Table:
         '''
         Adds a cell to the table.
         '''
-        if (len(self._table[-1]) > _SPLIT_TABLE_COLUMNS or
+        if (len(self._table[-1]) >= _SPLIT_TABLE_COLUMNS or
                 self._row_bytecount() > min(_SPLIT_THRESHOLD, _QUICKFORMAT_THRESHOLD)):
             self._new_column()
             colnum = 0

@@ -162,9 +162,7 @@ def status_to_irc_icon(status: V1Report.FacilityStatus) -> str:
     '''
     Returns an icon for a facility status value.
     '''
-    char = _status_ui_value(STATUS_IRC_ICONS, status)
-    colour = _status_ui_value(STATUS_COLOURS_IRC, status)
-    return colour.apply(char)
+    return _status_ui_value(STATUS_IRC_ICONS, status)
 
 
 def log_guild_channel(guild: discord.Guild, channel) -> str:

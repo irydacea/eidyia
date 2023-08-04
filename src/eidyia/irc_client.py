@@ -22,6 +22,7 @@ from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
+from src.eidyia.irc_formatter import Table as EidyiaIrcTable
 from src.eidyia.subscriber_api import EidyiaSubscriber
 import src.eidyia.ui_utils as ui
 
@@ -554,12 +555,12 @@ class EidyiaIrcClient(IrcBot, EidyiaSubscriber):
         #
         # Proceed with the report or report diff (common loop)
         #
-        fields = []
+        table = EidyiaIrcTable()
 
         for facility in diff.facilities():
             # Regular per-facility reporting
-            am_green = facility.status_after == V1Report.FacilityStatus.STATUS_GOOD \
-                       and facility.status_after == facility.status_before
+            am_green = (facility.status_after == V1Report.FacilityStatus.STATUS_GOOD
+                        and facility.status_after == facility.status_before)
             if am_green and not show_greens:
                 continue
             if facility.hidden and not include_hidden:
@@ -568,7 +569,6 @@ class EidyiaIrcClient(IrcBot, EidyiaSubscriber):
                 continue
             # Break facility down into component instances if possible so that
             # they can be featured separately in the report.
-            facility_parts = []
             if not am_green and facility.instances_diff:
                 # Break facility down into its component instances
                 for inst in facility.instances_diff:
@@ -576,38 +576,15 @@ class EidyiaIrcClient(IrcBot, EidyiaSubscriber):
                                  and inst.status_after == inst.status_before
                     if green_inst and not show_greens:
                         continue
-                    facility_parts.append({
-                        'name': f'{facility.name}/{inst.id}',
-                        'status': inst.status_after,
-                        })
+                    table.push(f'{facility.name}/{inst.id}',
+                               inst.status_after)
             else:
-                facility_parts.append({
-                    'name': facility.name,
-                    'status': facility.status_after,
-                    })
-            for entry in facility_parts:
-                name = f'{entry["name"]}:'
-                status_colour = ui.status_to_irc_colour(entry['status'])
-                status_text = status_colour.apply(ui.status_to_caption(entry['status']))
-                icon = ui.status_to_irc_icon(entry['status'])
-                fields.append(f'{ui.IrcFormat.BOLD.apply(name)} {icon} {status_text}')
+                table.push(facility.name, facility.status_after)
 
         #
         # Format for IRC, splitting into separate lines if needed
         #
-        message_line = ''
-        field_count = 0
-        for field in fields:
-            field_count += 1
-            if field_count > _IRC_SPLIT_TABLE_COLUMNS \
-               or u8bytecount(message_line) + u8bytecount(field) + 1 >= _IRC_SPLIT_THRESHOLD:
-                lines.append(message_line)
-                message_line = f' {field}'
-                field_count = 1
-            else:
-                message_line += f' {field}'
-        if message_line:
-            lines.append(message_line)
+        lines += table.format()
 
         if hidden_compromised > 0:
             # Not security through obscurity, they just tend to have dumb or

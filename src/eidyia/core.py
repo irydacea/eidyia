@@ -12,7 +12,7 @@ import logging
 from typing import Optional
 
 from .config import EidyiaConfig
-from .subscriber_api import EidyiaAsyncClient, EidyiaBeholder, EidyiaSubscriber, EidyiaSystemListener
+from .subscriber_api import EidyiaAsyncClient, EidyiaBeholder, EidyiaSystemListener
 from .thread_utils import ConcurrentFlag
 from ..valen.V1Report import Report as ValenReport
 
@@ -225,7 +225,7 @@ class EidyiaCore(EidyiaSystemListener):
                     await self._refresh_report()
                     # Notify subscribers for whenever they next have the chance
                     # to look at the new report.
-                    EidyiaSubscriber.eidyia_notify_all()
+                    EidyiaAsyncClient.eidyia_notify_all()
                 except Exception:
                     unhandled_exc += 1
                     if unhandled_exc == 1:

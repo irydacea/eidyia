@@ -18,12 +18,12 @@ from .thread_utils import ConcurrentFlag
 
 log = logging.getLogger('eidyia.subscriber_api')
 
-_subscribers: List['EidyiaSubscriber'] = []
+_subscribers: List['EidyiaAsyncClient'] = []
 
 
 class EidyiaAsyncClient(ABC):
     '''
-    Abstract base class for async clients with a common factory coroutine.
+    Abstract base class for async clients.
     '''
     @staticmethod
     @abstractmethod
@@ -32,11 +32,6 @@ class EidyiaAsyncClient(ABC):
         Static factory method used as the initial coroutine for EidyiaCore.
         '''
 
-
-class EidyiaSubscriber:
-    '''
-    Eidyia update events subscriber base class.
-    '''
     def __init__(self):
         '''
         Constructor.
@@ -90,10 +85,10 @@ class EidyiaSubscriber:
         '''
         global _subscribers
         if not _subscribers:
-            log.critical('EidyiaSubscriber.notify_all(): no subscribers? :c')
+            log.critical('EidyiaAsyncClient.notify_all(): no subscribers? :c')
             return
         for sub in _subscribers:
-            log.debug(f'EidyiaSubscriber.notify_all(): notifying subscriber {sub}')
+            log.debug(f'EidyiaAsyncClient.notify_all(): notifying subscriber {sub}')
             sub._eidyia_notify_subscriber()
 
     @property

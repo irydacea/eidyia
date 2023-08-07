@@ -16,7 +16,7 @@ from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
-from src.eidyia.subscriber_api import EidyiaAsyncClient, EidyiaSubscriber
+from src.eidyia.subscriber_api import EidyiaAsyncClient
 import src.eidyia.ui_utils as ui
 
 
@@ -39,7 +39,7 @@ EidyiaChannelList = List[Tuple[int, int]]
 log = logging.getLogger('DiscordClient')
 
 
-class EidyiaDiscordClient(discord.Client, EidyiaSubscriber, EidyiaAsyncClient):
+class EidyiaDiscordClient(discord.Client, EidyiaAsyncClient):
     '''
     Main Eidyia Discord client class.
 

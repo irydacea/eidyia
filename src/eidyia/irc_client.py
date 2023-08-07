@@ -23,7 +23,7 @@ from src.valen.V1Report import StatusDiff as V1StatusDiff
 from src.eidyia.config import EidyiaConfig, EidyiaReportMode
 from src.eidyia.core import eidyia_core, eidyia_critical_section
 from src.eidyia.irc_formatter import Table as EidyiaIrcTable
-from src.eidyia.subscriber_api import EidyiaAsyncClient, EidyiaSubscriber
+from src.eidyia.subscriber_api import EidyiaAsyncClient
 import src.eidyia.ui_utils as ui
 
 
@@ -250,7 +250,7 @@ class EidyiaIrcController(IrcServer):
             log.debug(f'Unsupported CTCP request {ctcp} from {nickname}')
 
 
-class EidyiaIrcClient(IrcBot, EidyiaSubscriber, EidyiaAsyncClient):
+class EidyiaIrcClient(IrcBot, EidyiaAsyncClient):
     '''
     Main Eidyia IRC client class.
 

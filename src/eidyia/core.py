@@ -269,7 +269,7 @@ class EidyiaCore(EidyiaSystemListener):
 
         am_ok = True
         taskset = set([asyncio.Task(self._async_monitor_loop())] +
-                      [asyncio.Task(coro) for coro in self._async_items.keys()])
+                      [asyncio.Task(coro) for coro in self._async_items])
         while taskset:
             await asyncio.sleep(0)
             # First to end means stops everything
@@ -303,7 +303,6 @@ def eidyia_core() -> EidyiaCore:
     eidyia_critical_section() decorator to guarantee that no other coroutines
     can access the core instance at the same time.
     '''
-    global _instance
     if _instance is None:
         log.critical('eidyia_core() call before core initialisation ')
         raise EidyiaResourceSharingViolation

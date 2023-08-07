@@ -81,6 +81,9 @@ class EidyiaIrcController(IrcServer):
         # TODO initialise command registry here
 
     def is_admin(self, account_name: str) -> bool:
+        '''
+        Checks if the given IRC services account is configured as an admin.
+        '''
         if self.bot.admins and account_name:
             for admin in self.bot.admins:
                 if self.casefold_equals(admin, account_name):
@@ -283,6 +286,7 @@ class EidyiaIrcClient(IrcBot, EidyiaAsyncClient):
         '''
         log.info('Initialising')
 
+        self._eidyia_irc_controller = None
         self._task = None
         self._force_full_report_once = False
         self._first_time_channels = set()

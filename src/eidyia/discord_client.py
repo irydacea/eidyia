@@ -59,7 +59,6 @@ class EidyiaDiscordClient(discord.Client, EidyiaAsyncClient):
         Static method used as the initial coroutine for EidyiaCore.
         '''
         async with EidyiaDiscordClient(config) as discord_client:
-            discord_client.subscribe()
             await discord_client.start()
 
     def __init__(self, config: EidyiaConfig, *args, **kwargs):

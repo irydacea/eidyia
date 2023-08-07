@@ -270,7 +270,6 @@ class EidyiaIrcClient(IrcBot, EidyiaAsyncClient):
         Static method used as the initial coroutine for EidyiaCore.
         '''
         async with EidyiaIrcClient(config) as irc_client:
-            irc_client.subscribe()
             await irc_client.setup_connections()
             await irc_client.run()
 

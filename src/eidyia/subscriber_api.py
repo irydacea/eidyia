@@ -37,6 +37,7 @@ class EidyiaAsyncClient(ABC):
         Constructor.
         '''
         self._eidyia_subscription_flag = ConcurrentFlag()
+        self.subscribe()
 
     @final
     def subscribe(self):

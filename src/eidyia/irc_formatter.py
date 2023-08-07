@@ -34,16 +34,34 @@ def u8bytecount(u8string: str) -> int:
 
 @dataclass
 class _Cell:
+    '''
+    Represents a single cell in a Table.
+
+    The 'visual' version of a cell is a string that represents the
+    human-readable character contents without any IRC formatting codes that
+    would normally not count towards its visual size. The 'raw' version is the
+    actual string sent to IRC including formatting codes.
+    '''
     visual: str
     raw: str
 
     def byte_count(self) -> int:
+        '''
+        Returns the byte count of a cell's raw contents.
+        '''
         return u8bytecount(self.raw)
 
     def width(self) -> int:
+        '''
+        Returns the visual width (character count) of a cell.
+        '''
         return len(self.visual)
 
     def padded(self, length: int) -> str:
+        '''
+        Returns the cell's raw contents after adding an amount of visual
+        padding in the form of whitespace.
+        '''
         visual_padding = length - self.width()
         if visual_padding <= 0:
             return self.raw
@@ -52,6 +70,16 @@ class _Cell:
 
 
 class Table:
+    '''
+    IRC text table object.
+
+    This is used to build text tables for posting on IRC, including colour
+    formatting codes appropriate for Valen reports. The table layout is such
+    that if a line isn't longer than a certain threshold meant to avoid
+    running into the IRC line byte count cap (accounting for the sender path)
+    it will have its cells formatted such that using a fixed-width font a
+    column will have a uniform cell width on all rows.
+    '''
     def __init__(self):
         self._table: List[List[str]] = [[]]
         self._colspans: List[int] = []

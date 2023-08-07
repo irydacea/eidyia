@@ -161,6 +161,15 @@ class EidyiaDiscordClient(discord.Client, EidyiaAsyncClient):
 
     @eidyia_critical_section
     async def broadcast_report(self):
+        '''
+        Posts a report update, or an error message if the last report update
+        failed for some reason.
+
+        NOTE: This executes in a critical section. If we are already executing
+        in one this will deadlock. Use _do_broadcast_report_update() and
+        _do_broadcast_report_error() directly if calling from a critical
+        section.
+        '''
         # Got an error enqueued?
         if eidyia_core().report_error is not None:
             await self._do_broadcast_report_error()

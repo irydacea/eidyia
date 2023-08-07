@@ -13,6 +13,9 @@ from src.valen.V1Report import Report as V1Report
 
 
 class IrcColour(StrEnum):
+    '''
+    Class used to represent and apply IRC colour codes.
+    '''
     WHITE = '00'
     BLACK = '01'
     BLUE = '02'
@@ -39,6 +42,9 @@ class IrcColour(StrEnum):
 
 
 class IrcFormat(StrEnum):
+    '''
+    Class used to represent and apply IRC formatting codes.
+    '''
     CTCP_MARKER = '\x01'
     BOLD = '\x02'
     COLOUR = '\x03'

@@ -34,7 +34,7 @@ class EidyiaAsyncClient(ABC):
 
     def __init__(self):
         '''
-        Constructor.
+        Constructor. It automatically subscribes to notifications.
         '''
         self._eidyia_subscription_flag = ConcurrentFlag()
         self.subscribe()

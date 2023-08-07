@@ -11,10 +11,10 @@ import functools
 import logging
 from typing import Optional
 
-from .config import EidyiaConfig
-from .subscriber_api import EidyiaAsyncClient, EidyiaBeholder, EidyiaSystemListener
-from .thread_utils import ConcurrentFlag
-from ..valen.V1Report import Report as ValenReport
+from src.eidyia.config import EidyiaConfig
+from src.eidyia.subscriber_api import EidyiaAsyncClient, EidyiaBeholder, EidyiaSystemListener
+from src.eidyia.thread_utils import ConcurrentFlag
+from src.valen.V1Report import Report as ValenReport
 
 
 #

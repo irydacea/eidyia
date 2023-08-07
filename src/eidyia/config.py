@@ -7,13 +7,14 @@ See COPYING for use and distribution terms.
 '''
 
 from dataclasses import dataclass, field
-import discord
 import getpass
 from enum import IntEnum
-import jsonc_parser.errors
-import jsonc_parser.parser
 import logging
 from typing import Any, List, Optional, Self, Union
+
+import discord
+import jsonc_parser.errors
+import jsonc_parser.parser
 
 
 # Default Site Status site

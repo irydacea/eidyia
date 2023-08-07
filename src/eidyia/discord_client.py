@@ -8,9 +8,10 @@ See COPYING for use and distribution terms.
 
 import asyncio
 import datetime
-import discord
 import logging
 from typing import List, NoReturn, Optional, Tuple
+
+import discord
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff

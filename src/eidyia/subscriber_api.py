@@ -13,8 +13,8 @@ from typing import final, List, NoReturn
 import watchdog.events
 import watchdog.observers
 
-from .config import EidyiaConfig
-from .thread_utils import ConcurrentFlag
+from src.eidyia.config import EidyiaConfig
+from src.eidyia.thread_utils import ConcurrentFlag
 
 log = logging.getLogger('eidyia.subscriber_api')
 

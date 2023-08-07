@@ -8,6 +8,10 @@ See COPYING for use and distribution terms.
 
 import asyncio
 import datetime
+import logging
+import socket
+from typing import Dict, List, NoReturn, Optional, Union
+
 from irctokens import build as ircbuild
 from irctokens import Hostmask as IrcHostmask
 from irctokens import Line as IrcLine
@@ -15,8 +19,6 @@ from ircrobots import Bot as IrcBot
 from ircrobots import ConnectionParams as IrcConnectionParams
 from ircrobots import SASLUserPass as IrcSASLUserPass
 from ircrobots import Server as IrcServer
-import logging
-from typing import Dict, List, NoReturn, Optional, Union
 
 from src.valen.V1Report import Report as V1Report
 from src.valen.V1Report import StatusDiff as V1StatusDiff

@@ -548,7 +548,7 @@ class EidyiaIrcClient(IrcBot, EidyiaSubscriber, EidyiaAsyncClient):
         overall_status = core.report.status_summary()
         summary_colour = ui.status_to_irc_colour(overall_status)
         summary_label = summary_colour.apply(ui.status_to_caption(overall_status))
-        summary_icon = ui.status_to_irc_icon(overall_status)
+        summary_icon = summary_colour.apply(ui.status_to_irc_icon(overall_status))
         post_ts = datetime.datetime.fromtimestamp(core.report.last_refresh())
 
         lines = [f'{ui.IrcFormat.BOLD.apply("Overall Status:")} '

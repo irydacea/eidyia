@@ -1,0 +1,4 @@
+discord.py
+jsonc_parser
+ircrobots
+watchdog
